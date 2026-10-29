@@ -1,0 +1,252 @@
+<div class="document-content"><h1 id="deploy-a-standalone-remote-agent">部署独立远程智能体<a class="heading-anchor" href="#deploy-a-standalone-remote-agent" aria-label="链接到部署独立远程智能体"><span aria-hidden="true">#</span></a></h1>
+<p>当用户希望在另一台机器上部署个人、非团队模式的 Happy Agent，并能从现有 Happy 安装实例发起编程任务、尽量减少后续设置时，使用本指南。远端是独立的守护进程，拥有自己的项目、智能体、个人资料和凭据。此次部署不要创建 Happy 团队、WorkOS 组织或团队登录。</p>
+<p>按需阅读<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md" target="_blank" rel="noreferrer">配置</a>和 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/tailcat.md" target="_blank" rel="noreferrer">Tailcat</a>。准确的 API 请求以已安装版本的 <code>API.md</code> 为准（源码检出目录中位于 <code>packages/happy-agent/API.md</code>）。本指南面向使用 systemd 的全新 Linux 服务器；在 macOS 上应调整服务管理器与路径，而不是直接执行 Linux 命令。</p>
+<h2 id="automatic-by-default">默认自动执行<a class="heading-anchor" href="#automatic-by-default" aria-label="链接到默认自动执行"><span aria-hidden="true">#</span></a></h2>
+<p>智能体端到端执行本指南：核实目标机器与当前设置，将本地个人资料复制到远程配置，配置已获授权的凭据，安装并启动服务，登记连接，配置 Git，并执行完成检查。不要把示例变成留给用户完成的作业。复用已有选择与已授权访问，不要每一步都询问。只有缺少重要选择或授权时才提问；遇到无法避免的浏览器、设备登录、SSH 或钥匙串批准时暂停，随后自动继续。自动化绝不会绕过权限审查，也不意味着可以转移无关账号的凭据。</p>
+<h2 id="1-resolve-the-few-choices-that-matter">1. 确定少数关键选择<a class="heading-anchor" href="#1-resolve-the-few-choices-that-matter" aria-label="链接到 1. 确定少数关键选择"><span aria-hidden="true">#</span></a></h2>
+<p>复用用户已经提供的信息。将仍缺少的信息集中询问。</p>
+<ul>
+<li>使用哪台机器和哪个 SSH 账号？确认其主机密钥、操作系统、架构，以及安装持久服务和启用远程访问的权限。</li>
+<li>远端应使用哪些提供商账号？说明复制凭据会让该机器获得这些账号的访问权，并能使用其消费额度。取得对具体凭据和目标机器的同意；尽可能优先在远端重新登录或使用专用凭据。</li>
+<li>“是否也要在那里设置 GitHub？我可以安装 GitHub CLI（<code>gh</code>），登录你选择的 GitHub 账号，并配置 Git 使用它。”确认 GitHub 主机、账号和仓库。</li>
+<li>在计划使用的本地仓库中，读取当前用户实际生效的 <code>git config --get user.name</code> 和 <code>git config --get user.email</code>；没有仓库时读取全局值。向用户建议在远端使用这些完全相同的值：“远端也将使用这个 Git 名称和邮箱；需要改成别的吗？”缺失或有歧义时再询问。如果用户使用 GitHub no-reply 邮箱，就保留它；绝不根据用户名编造邮箱。</li>
+<li>复用请求或本地设置中的远端友好名称、默认提供商／模型，以及初始仓库或工作文件夹。只有缺失或有歧义时才询问。</li>
+<li>作为<strong>本地</strong>安装实例上处于活动状态的管理机器人，调用 <code>get_local_profile</code>，参数为 <code>{}</code>。它直接从本地存储读取已有名称和邮箱，不发起 API 请求。默认复用这些值，并与 Git 提交身份分开处理。只有值缺失（<code>null</code>）或用户要求不同的远端个人资料时才询问。绝不将个人资料数据库、私有身份、安装 ID 或版本复制到远端。</li>
+</ul>
+<p>如果已有安装实例，先检查其服务、账号、配置和项目。保留现有内容，只合并用户要求的设置。不要为了套用这些全新安装示例而替换现有守护进程的身份、凭据或数据。</p>
+<h3 id="exe-dev-deployment-notes">exe.dev 部署说明<a class="heading-anchor" href="#exe-dev-deployment-notes" aria-label="链接到 exe.dev 部署说明"><span aria-hidden="true">#</span></a></h3>
+<p>如果用户现有的 <code>~/.ssh/id_ed25519</code> 密钥已获 exe.dev 授权，优先使用它进行 SSH 连接。使用 exe.dev 返回的 VM 地址和登录用户；不要编造 SSH 主机名，也不要把私钥复制到 VM。验证主机密钥，并显式指定密钥，例如 <code>ssh -i ~/.ssh/id_ed25519 &lt;confirmed-user&gt;@&lt;confirmed-vm-host&gt;</code>。</p>
+<p>exe.dev 默认的 bearer 令牌可以创建和列出 VM，但不能进行 SSH 连接、删除 VM 或添加 SSH 密钥。因此，成功创建 VM 不能证明已经具备初始化访问权限。如果 SSH 未获授权，请用户安排所需访问；不要用该令牌重试特权操作，也不要将其当作 Happy Agent 凭据。</p>
+<p>SSH 可用时，避免使用 exe.dev 首次启动脚本。它们只执行一次，运行身份是 <code>exedev</code>，而不是 <code>happy-agent</code> 服务用户；在 HTTPS 请求体中引用换行也容易出错。应改用经过检查、可重复执行的 SSH 步骤。标准 x86-64 exe.dev VM 使用 <code>linux-x64</code> 压缩包，但仍需先检查 <code>uname -m</code>。使用下文服务用户实际的 Linux <code>happy/config</code> 目录，而不是照搬旧部署的路径。</p>
+<h2 id="2-install-the-binary-and-prepare-one-service-account">2. 安装二进制并准备一个服务账号<a class="heading-anchor" href="#2-install-the-binary-and-prepare-one-service-account" aria-label="链接到 2. 安装二进制并准备一个服务账号"><span aria-hidden="true">#</span></a></h2>
+<p>使用专用的非特权账号，本例为 <code>happy-agent</code>，主目录为 <code>/var/lib/happy-agent</code>。守护进程、提供商凭据、Git 配置、GitHub 登录和仓库都必须属于该账号，而不是 root 或 SSH 操作者。在全新的 Debian／Ubuntu 主机上执行以下操作。</p>
+<pre><code class="language-sh">sudo apt-get update
+sudo apt-get install -y ca-certificates curl git jq tar
+sudo useradd --system --create-home --home-dir /var/lib/happy-agent \
+  --shell /bin/bash happy-agent
+sudo chmod 0700 /var/lib/happy-agent
+sudo install -d -m 0700 -o happy-agent -g happy-agent \
+  /var/lib/happy-agent/happy/config \
+  /var/lib/happy-agent/.happy \
+  /var/lib/happy-agent/.config/happy-agent/credentials \
+  /var/lib/happy-agent/projects
+</code></pre>
+<p>如果此节点自行运行智能体工作，而不是使用<a href="https://happy.engineering/recepies/runner/">专用执行器</a>，也应提出<a href="https://happy.engineering/recepies/hardening/">通过独立 Linux 用户加固</a>的选项：这样，智能体命令会以工作负载用户运行，无法读取此账号的配置、数据库或凭据。在守护进程首次启动前作出决定，因为该指南会把所有项目和工作区文件夹放入工作负载用户的主目录，并将二进制安装为 <code>/usr/local/bin</code> 下由 root 所有的文件。</p>
+<p>除非用户固定了版本，否则在部署时从 GitHub 查找最新稳定版 Happy Agent。筛选 Happy Agent 的 <code>v&lt;version&gt;</code> 标签，而不是库的发布版本；不要复用先前部署时记住的版本。根据 <code>uname -m</code> 匹配 <code>linux-x64</code> 或 <code>linux-arm64</code>。在全新的临时目录中下载，验证已发布的校验和，然后安装。</p>
+<pre><code class="language-sh">set -eu
+DEPLOY_DOWNLOAD_DIR=&quot;$(mktemp -d)&quot;
+cd &quot;$DEPLOY_DOWNLOAD_DIR&quot;
+DEPLOY_TAG=&quot;$(curl -fsSL &#x27;https://api.github.com/repos/slopus/happy-agent/releases?per_page=100&#x27; |
+  jq -er &#x27;[.[] | select(.draft == false and .prerelease == false) |
+    select(.tag_name | test(&quot;^v[0-9]+\\.[0-9]+\\.[0-9]+$&quot;))][0].tag_name // error(&quot;No stable Happy Agent release found&quot;)&#x27;)&quot;
+DEPLOY_VERSION=&quot;${DEPLOY_TAG#v}&quot;
+case &quot;$(uname -m)&quot; in
+  x86_64) DEPLOY_TARGET=&quot;linux-x64&quot; ;;
+  aarch64|arm64) DEPLOY_TARGET=&quot;linux-arm64&quot; ;;
+  *) echo &quot;Unsupported Linux architecture; choose a supported release target.&quot; &gt;&amp;2; exit 1 ;;
+esac
+DEPLOY_ARCHIVE=&quot;happy-agent-$DEPLOY_VERSION-$DEPLOY_TARGET.tar.gz&quot;
+DEPLOY_RELEASE_URL=&quot;https://github.com/slopus/happy-agent/releases/download/v$DEPLOY_VERSION&quot;
+curl -fLO &quot;$DEPLOY_RELEASE_URL/$DEPLOY_ARCHIVE&quot;
+curl -fLO &quot;$DEPLOY_RELEASE_URL/$DEPLOY_ARCHIVE.sha256&quot;
+sha256sum --check &quot;$DEPLOY_ARCHIVE.sha256&quot;
+tar -xzf &quot;$DEPLOY_ARCHIVE&quot;
+sudo install -m 0755 &quot;happy-agent-$DEPLOY_TARGET&quot; /usr/local/bin/happy-agent
+/usr/local/bin/happy-agent --version
+</code></pre>
+<p>下载或校验和验证失败时停止。发布二进制是自包含的，并内嵌 Tailcat 服务器；无需源码检出目录、Node.js 或单独安装 Tailcat 服务器。只在初始项目需要时安装仓库专用的运行时／包管理器。macOS 使用匹配的 <code>darwin-*</code> 产物、<code>shasum -a 256 -c</code>、所选用户的 <code>~/Happy/Config/happy.toml</code>，以及该用户下的持久 launchd 服务。</p>
+<p>如果 GitHub 查询受到速率限制，或当前页没有 Happy Agent 发布版本，应继续查询剩余页面，或通过已授权的 GitHub 客户端查找版本；不要猜测版本号。记录选定版本以便交接。首次启动前，确认 <code>/var/lib/happy-agent/.happy</code> 属于 <code>happy-agent</code>，尤其是在之前以 root 身份初始化并创建过该目录的情况下。对现有安装，应先检查所有权，再做限定范围的修复；绝不递归修改无关目录或跟随未经验证的符号链接。</p>
+<h3 id="ubuntu-namespace-permissions">Ubuntu 命名空间权限<a class="heading-anchor" href="#ubuntu-namespace-permissions" aria-label="链接到 Ubuntu 命名空间权限"><span aria-hidden="true">#</span></a></h3>
+<p>在 Ubuntu 24.04 上首次启动前，检查主机的 AppArmor 命名空间限制，并遵循 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/permissions-and-sandbox.md#ubuntu-apparmor-host-prerequisite" target="_blank" rel="noreferrer">Ubuntu AppArmor 主机前置要求</a>。为可信且由 root 所有的守护进程可执行文件授予应用专属 <code>userns</code> 权限前，需取得批准。保留现有约束配置；不要关闭系统范围的限制、授予服务 capabilities，或把 Auto 改为 Full access。如果此主机策略变更未获授权，应报告沙箱启动受阻，而不是声称部署已完成。</p>
+<h2 id="3-provision-only-the-selected-provider-credentials">3. 只配置选定提供商的凭据<a class="heading-anchor" href="#3-provision-only-the-selected-provider-credentials" aria-label="链接到 3. 只配置选定提供商的凭据"><span aria-hidden="true">#</span></a></h2>
+<p>绝不打印认证文件或令牌、将它们粘贴到聊天中、放入命令参数或 Git，也不要在处理时开启 shell 跟踪。使用现有且经过审查的密钥机制，或直接通过加密 SSH／SCP 传输。如果缺少授权或安全访问方式，让用户私下完成该步骤。不要绕过钥匙串或权限限制。</p>
+<p>传输文件时，在目标机器上用 <code>mktemp -d</code> 创建私有暂存目录，使用它返回的确切路径，通过 <code>scp</code> 传输已获授权的本地认证文件，然后将文件安装为服务账号所有。例如，传输到私有暂存路径后执行以下操作。</p>
+<pre><code class="language-sh">sudo install -m 0600 -o happy-agent -g happy-agent \
+  /EXACT_PRIVATE_STAGING_PATH/auth.json \
+  /var/lib/happy-agent/.config/happy-agent/credentials/codex.json
+</code></pre>
+<p>对每个选定厂商替换暂存路径和目标路径。验证已安装文件后，只删除确切的暂存凭据副本。凭据文件和配置的权限必须为 <code>0600</code>，私有父目录为 <code>0700</code>。Codex 和 Grok 会原地刷新凭据，因此文件及其父目录都必须允许服务账号写入。不要复制整个主目录或无关账号。重复的 OAuth 会话可能因刷新令牌轮换而相互干扰；如果复制导致任一机器不稳定，应在远端单独登录。</p>
+<p>将下文的提供商配置段写入<strong>远程机器</strong>的 <code>/var/lib/happy-agent/happy/config/happy.toml</code>。使用远端绝对路径，而不是源机器的路径。含有 <code>REPLACE_...</code> 的示例是模板，不是可用凭据。通过私有编辑器／密钥配置工具填入秘密值，不要使用模型可见的补丁或 shell 命令字面量。不要假定 TOML 会展开字符串中的环境变量。</p>
+<h3 id="openai-codex">OpenAI / Codex<a class="heading-anchor" href="#openai-codex" aria-label="链接到 OpenAI / Codex"><span aria-hidden="true">#</span></a></h3>
+<p>通过官方 CLI 执行 <code>codex login</code> 登录。通常文件为 <code>~/.codex/auth.json</code>，或名为 <code>auth.json</code>、位于用户配置的 <code>CODEX_HOME</code> 目录中的文件。将完整文件（包括会话／刷新数据及账号身份）复制到远程凭据路径。不要只提取访问令牌。仅存于钥匙串的登录不是可移植文件：请使用 Codex 支持的基于文件的登录方式，或在远端登录；绝不复制操作系统钥匙串。查看已安装 Codex CLI 的帮助，确认其支持的登录流程。</p>
+<pre><code class="language-toml">[providers.codex]
+enabled = true
+auth_file = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/codex.json&quot;
+transport = &quot;auto&quot;
+</code></pre>
+<p>如果用户选择 OpenAI API 密钥而不是 Codex 订阅登录，在此配置段中使用 <code>api_key</code>，私下填入值，并省略 <code>auth_file</code>。API 计费和可用模型可能不同。不要悄悄将订阅认证改成付费 API 密钥。</p>
+<h3 id="anthropic-claude-code">Anthropic / Claude Code<a class="heading-anchor" href="#anthropic-claude-code" aria-label="链接到 Anthropic / Claude Code"><span aria-hidden="true">#</span></a></h3>
+<p>对于无界面的远端，优先使用已授权账号现有的长期 setup token。否则，智能体可以按下文说明自动提取当前钥匙串令牌，但需注意所述有效期限制。需要新的长期令牌时，以计划使用的已登录用户运行 <code>claude setup-token</code>，只在私密登录交互时请用户参与。私下传输生成的令牌，并写入远程配置。</p>
+<pre><code class="language-toml">[providers.claude]
+enabled = true
+oauth_token = &quot;REPLACE_WITH_PRIVATE_SETUP_TOKEN&quot;
+</code></pre>
+<p>或者，如果源机器使用基于文件的 Claude 登录，将 <code>~/.claude/.credentials.json</code>（或 <code>CLAUDE_CONFIG_DIR</code> 中的对应文件）复制到远端私有目录，文件名保持为 <code>.credentials.json</code>。配置的是<strong>目录</strong>而不是文件，并省略 <code>oauth_token</code>。</p>
+<pre><code class="language-toml">[providers.claude]
+enabled = true
+config_dir = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/claude&quot;
+</code></pre>
+<h4>直接读取已有的 macOS 钥匙串令牌</h4>
+<p>Claude 通常将 OAuth 凭据保存在登录钥匙串中；仅复制 <code>~/.claude</code> 不会复制该登录。获得将此账号转移到所选远端的授权后，智能体可以自动提取当前令牌。以本地已登录用户运行，而不是 root。如果 shell 沙箱无法访问钥匙串，使用经过审查的主机访问方式；绝不绕过拒绝。任何 macOS 批准提示都应由用户处理。</p>
+<p>对于默认 Claude 配置，以下 Bash 片段读取 <code>Claude Code-credentials</code> 通用密码条目，只将 <code>claudeAiOauth.accessToken</code> 提取到私有文件。它特意不打印 JSON 凭据或令牌。</p>
+<pre><code class="language-bash">set -euo pipefail
+umask 077
+CLAUDE_TOKEN_DIR=&quot;$(mktemp -d)&quot;
+/usr/bin/security find-generic-password \
+  -a &quot;$(id -un)&quot; -s &quot;Claude Code-credentials&quot; -w |
+  jq -er &#x27;.claudeAiOauth.accessToken | select(type == &quot;string&quot; and length &gt; 0)&#x27; \
+  &gt; &quot;$CLAUDE_TOKEN_DIR/oauth-token&quot;
+test -s &quot;$CLAUDE_TOKEN_DIR/oauth-token&quot;
+</code></pre>
+<p>不要单独运行 <code>security ... -w</code> 命令、使用 shell 跟踪，或将该文件读入工具输出。查找或提取失败时停止。保留确切的临时路径用于加密传输，然后使用理解 TOML 的配置工具，私下将文件内容载入远端的 <code>[providers.claude] oauth_token</code>。此设置接受令牌值，而不是文件路径。不要将秘密值放入命令参数或模型可见的补丁。验证认证成功后，只删除两台机器上确切的暂存令牌文件。</p>
+<p>对于自定义 Claude 环境，应选择其实际的钥匙串条目，而不是猜测账号：设置了 <code>CLAUDE_CONFIG_DIR</code> 时，在服务名末尾添加 <code>-</code>，再加上实际目录字符串 SHA-256 值的前八个小写十六进制字符。设置了 <code>CLAUDE_CODE_CUSTOM_OAUTH_URL</code> 时，将 <code>-custom-oauth</code> 插入 <code>Claude Code</code> 之后。最终服务名为 <code>Claude Code[-custom-oauth]-credentials[-&lt;directory-hash&gt;]</code>。使用拥有该登录的账号；通常账号就是本地用户名。这些规则与 Happy 查找 Claude 凭据的方式一致。</p>
+<p>这只是当前的<strong>访问令牌</strong>，不是新签发的长期 setup token。Happy 的静态 <code>oauth_token</code> 设置不会从本地 Mac 刷新它，复制 <code>.credentials.json</code> 也不会让 Happy 获得 Claude 刷新流程。如果存在 <code>claudeAiOauth.expiresAt</code>，私下检查有效期；此刻验证成功并不保证之后能无人值守运行。要长期无人值守使用，优先采用已有的长期 setup token，或在需要续期时安排 <code>claude setup-token</code>／远端重新登录。所有非交互工作都应自动完成，只为登录交互本身请求用户参与。交接时说明续期要求；这两类令牌都不是永久有效，也都可能被撤销。</p>
+<p>如果用户选择 Anthropic API 密钥，则改用 <code>api_key</code>，同样私下处理，并明确取得计费同意。选择一种认证方式，不要设置多个相互竞争的覆盖项。</p>
+<h3 id="xai-grok">xAI / Grok<a class="heading-anchor" href="#xai-grok" aria-label="链接到 xAI / Grok"><span aria-hidden="true">#</span></a></h3>
+<p>通过官方 CLI 为计划使用的账号运行 <code>grok login</code>。将完整的 <code>~/.grok/auth.json</code>，或自定义主目录下的 <code>$GROK_HOME/auth.json</code>（如已配置），安全复制到远端。完整保留所有作用域记录和刷新元数据。</p>
+<pre><code class="language-toml">[providers.grok]
+enabled = true
+auth_file = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/grok.json&quot;
+</code></pre>
+<p>Grok 会刷新会话并原子重写此文件。如果用户明确选择 xAI API 密钥，使用 <code>api_key</code> 代替 <code>auth_file</code>；验证目标模型能通过该密钥使用。</p>
+<h3 id="amazon-bedrock">Amazon Bedrock<a class="heading-anchor" href="#amazon-bedrock" aria-label="链接到 Amazon Bedrock"><span aria-hidden="true">#</span></a></h3>
+<p>主机运行在 AWS 上时，优先使用最小权限的实例／任务角色，这样就不需要复制本地密钥。否则，选择 Bedrock bearer 密钥或受支持的 AWS 凭据链。使用 bearer 密钥时，私下填入以下配置。</p>
+<pre><code class="language-toml">[providers.bedrock]
+enabled = true
+region = &quot;us-east-1&quot;
+bearer_token = &quot;REPLACE_WITH_PRIVATE_BEDROCK_KEY&quot;
+</code></pre>
+<p>也可以使用 <code>bearer_token_env_var = &quot;AWS_BEARER_TOKEN_BEDROCK&quot;</code>，并在第 5 步将值写入服务的私有环境文件；省略 <code>bearer_token</code>。SSH 会话中的 export 不会被 systemd 继承。</p>
+<p>使用 AWS profile 时，只从 <code>~/.aws/config</code> 和 <code>~/.aws/credentials</code> 传输已获授权 profile 的设置和凭据，保留 AWS 格式。将它们安装为私有文件，并显式选择。</p>
+<pre><code class="language-toml">[providers.bedrock]
+enabled = true
+region = &quot;us-east-1&quot;
+profile = &quot;remote-bedrock&quot;
+config_file = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/aws-config&quot;
+credentials_file = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/aws-credentials&quot;
+</code></pre>
+<p>配置段为 <code>[profile remote-bedrock]</code>，凭据段为 <code>[remote-bedrock]</code>。临时凭据还需要对应的会话令牌。复制即将过期的凭据或 SSO 缓存，不是持久认证方式：应在远端完成受支持的 AWS 登录，或以服务用户安装并配置其 <code>credential_process</code> 辅助程序。确保辅助程序可以非交互执行，并能在那里刷新凭据。选择账号实际可用的区域和模型。</p>
+<h3 id="optional-gemini-tools">可选的 Gemini 工具<a class="heading-anchor" href="#optional-gemini-tools" aria-label="链接到可选的 Gemini 工具"><span aria-hidden="true">#</span></a></h3>
+<p>如果用户需要 Gemini 媒体／搜索工具，将其选定密钥私下复制到 <code>[gemini] api_key</code>，或在守护进程环境文件中设置 <code>GEMINI_API_KEY</code>。Gemini 不是聊天提供商配置项。不要仅仅因为本地存在额外凭据，就把它们一并复制。</p>
+<h2 id="4-finish-remote-configuration">4. 完成远程配置<a class="heading-anchor" href="#4-finish-remote-configuration" aria-label="链接到 4. 完成远程配置"><span aria-hidden="true">#</span></a></h2>
+<p>在远端 <code>happy.toml</code> 中，将以下设置与选定提供商的配置段合并。</p>
+<pre><code class="language-toml">[providers]
+default_enable = false
+
+[profile]
+name = &quot;REPLACE_WITH_LOCAL_PROFILE_NAME&quot;
+email = &quot;REPLACE_WITH_LOCAL_PROFILE_EMAIL&quot;
+
+[feature.team]
+enabled = false
+
+[api]
+token = &quot;REPLACE_WITH_FRESH_43_CHARACTER_BASE64URL_TOKEN&quot;
+
+[feature.tailcat]
+enabled = true
+port = 24779
+
+[defaults]
+provider = &quot;codex&quot;
+model = &quot;REPLACE_WITH_AVAILABLE_MODEL_ID&quot;
+permission_mode = &quot;auto&quot;
+</code></pre>
+<p>将默认提供商和模型替换为用户选择的可用组合。只启用已经配置了认证的提供商。Auto 会审查操作；绝不要仅为通过初始化检查而选择 Full access。合并片段时，每个 TOML 表只能出现一次。</p>
+<p>将两个 <code>[profile]</code> 字段从 <code>get_local_profile</code> 的返回值写入这个全局配置，务必在<strong>首次启动前</strong>完成，并使用 TOML 序列化器进行转义。启动时会创建远端自己的个人资料，并从这些记录中补齐缺少的名称／邮箱字段。这能满足初始引导中的个人资料要求，无需显示资料创建界面，也无需通过 HTTP 修改个人资料。不存在 <code>skip_profile</code> 标志：不要用空资料绕过要求。其他初始检查仍然适用，包括提供商凭据和项目。后续对个人资料的编辑在重启后会保留；配置只补齐仍然缺失的字段。项目配置不能设置这些值，团队部署则会拒绝共享的 <code>[profile]</code> 段。使用支持这些设置的版本；如果选定的旧版不支持，应报告需要升级，而不是悄悄回退到调用个人资料 API。</p>
+<p>全新远程部署时，安全生成 32 个随机字节，以不带填充的 43 位 base64url 字符编码，并将此新值私下写入 <code>[api] token</code>。这样，远端及其主连接从一开始就拥有一个明确的凭据。绝不复用 exe.dev 令牌、提供商凭据或另一安装实例的令牌。升级时保留已有安装实例的令牌。不显式设置时，守护进程可以自行生成令牌，但本部署指南特意预先配置一个，并使用完全相同的值登记连接。</p>
+<p>Tailcat 提供无需账号的加密连接，而不是身份认证。任何获知其地址的人都能接触到 API 认证边界；bearer 令牌授予独立守护进程的访问权。两者都应保密，启用这种对外可达能力前应取得同意。不需要公开的未认证 HTTP 监听端点、WorkOS 配置或 Tailscale 账号。</p>
+<h2 id="5-install-a-restart-safe-service">5. 安装可可靠重启的服务<a class="heading-anchor" href="#5-install-a-restart-safe-service" aria-label="链接到 5. 安装可可靠重启的服务"><span aria-hidden="true">#</span></a></h2>
+<p>安装 <code>/etc/systemd/system/happy-agent.service</code>。</p>
+<pre><code class="language-ini">[Unit]
+Description=Happy Agent (standalone)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=happy-agent
+Group=happy-agent
+WorkingDirectory=/var/lib/happy-agent
+Environment=HOME=/var/lib/happy-agent
+EnvironmentFile=-/var/lib/happy-agent/.config/happy-agent/service.env
+ExecStart=/usr/local/bin/happy-agent run
+Restart=on-failure
+RestartSec=2
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<p>如果任何凭据使用环境变量，私下创建 <code>service.env</code>，采用 <code>NAME=value</code> 条目，不加 <code>export</code>，并使用正确的 systemd 引号规则。所有者设为 <code>happy-agent</code>，权限设为 <code>0600</code>；不要把秘密值放进所有人可读的 unit 文件。使用显式路径，将必需的凭据辅助程序／运行时加入服务的 PATH。避免另一安装实例遗留的提供商变量造成竞争。</p>
+<pre><code class="language-sh">sudo chown happy-agent:happy-agent /var/lib/happy-agent/happy/config/happy.toml
+sudo chmod 0600 /var/lib/happy-agent/happy/config/happy.toml
+sudo systemctl daemon-reload
+sudo systemctl enable --now happy-agent
+sudo systemctl is-active happy-agent
+</code></pre>
+<p>设置明确的等待截止时间，等待经过认证的 <code>/v0/health</code> 报告就绪，而不只是确认进程存在。默认本地套接字为 <code>/var/lib/happy-agent/.happy/agent/server.sock</code>；令牌文件为 <code>/var/lib/happy-agent/.happy/agent/token</code>。使用受保护的客户端／请求头文件或客户端 SDK，确保令牌绝不会出现在进程参数或工具输出中。失败时，查看长度受限且已脱敏的日志片段；不要倾倒含凭据的配置。保持 systemd 为服务管理者，不要再用 <code>happy-agent start</code> 启动第二个守护进程。</p>
+<h3 id="graceful-maintenance-after-deployment">部署后的平稳维护<a class="heading-anchor" href="#graceful-maintenance-after-deployment" aria-label="链接到部署后的平稳维护"><span aria-hidden="true">#</span></a></h3>
+<p>升级或计划停机维护时，使用独立的 SSH／操作会话，不要使用由即将停止的守护进程所拥有的工具。</p>
+<pre><code class="language-sh">sudo -u happy-agent -H /usr/local/bin/happy-agent drain &amp;&amp;
+sudo systemctl stop happy-agent
+</code></pre>
+<p>在支持基于信号排空工作的版本中，第一条命令使用 <code>SIGUSR2</code> 和私有本地状态，不需要 API、提供商或 WorkOS 令牌。它会等待已接纳的智能体工作到达安全且可持久化的边界，再报告完成，同时让守护进程继续运行在只读排空模式。新工作会被拒绝，待处理工作保持持久化。重复执行 drain 是安全的。如果命令失败，应停止并检查原因，不要继续维护。</p>
+<p>第二条命令通过 <code>SIGTERM</code> 请求平稳关闭。在守护进程退出前，具名清理处理器会关闭运行时的服务和进程、数据库连接及 API 传输通道。等待其退出后，再备份或替换文件。单独发送 <code>SIGTERM</code> 不会先排空正在进行的推理。排空操作也不会等待任意终端／后台任务完成，因此需要另外安排；强制终止不属于平稳关闭。</p>
+<p><code>happy-agent drain</code> 会检查运行中守护进程的信号支持情况和进程身份。不要向旧版本直接发送 <code>SIGUSR2</code>，这可能终止进程。保持相同的服务用户及任何 <code>HAPPY_HOME_DIR</code> 覆盖设置。直接使用信号、处理旧版本、备份、关闭进度和恢复等内容，参见<a href="https://happy.engineering/recepies/upgrade/">升级指南</a>。</p>
+<h3 id="strongly-recommended-a-dedicated-runner">强烈建议：使用专用执行器<a class="heading-anchor" href="#strongly-recommended-a-dedicated-runner" aria-label="链接到强烈建议：使用专用执行器"><span aria-hidden="true">#</span></a></h3>
+<p>节点健康后，建议<a href="https://happy.engineering/recepies/runner/">添加专用执行器</a>，并在用户同意后实施：第二台机器运行智能体命令、Git、终端和项目文件夹，此节点则保留数据库、提供商凭据和令牌。在第 7 步登记初始项目前完成，这样项目从一开始就克隆在执行器上；执行器主动连接此节点的 Tailcat 端点，因此无需入站端口。</p>
+<h2 id="6-connect-the-primary-installation">6. 连接主安装实例<a class="heading-anchor" href="#6-connect-the-primary-installation" aria-label="链接到 6. 连接主安装实例"><span aria-hidden="true">#</span></a></h2>
+<p>最多等待 90 秒，让远端私有的 <code>.happy/agent/tailcat/address</code> 和 <code>tailcat/port</code> 文件出现。两者必须都存在，且服务保持健康。将地址、端口和守护进程令牌安全传输到主机器。绝不复制 Tailcat 私有身份密钥。</p>
+<p>在主安装实例上，让活动中的参谋长／管理机器人通过 <code>set_remote_connection</code> 登记这些确切值。输入结构如下。</p>
+<pre><code class="language-json">{
+    &quot;id&quot;: &quot;personal-server&quot;,
+    &quot;connection&quot;: {
+        &quot;name&quot;: &quot;Personal server&quot;,
+        &quot;address&quot;: &quot;REPLACE_WITH_EXACT_TAILCAT_ADDRESS&quot;,
+        &quot;port&quot;: 24779,
+        &quot;token&quot;: &quot;REPLACE_WITH_REMOTE_API_TOKEN&quot;
+    }
+}
+</code></pre>
+<p>令牌应通过已批准的私有凭据配置路径传入；绝不在聊天、日志或交接中重复它。该工具登记已有远端，不负责部署 VM。它会写入主安装实例自动生成的运行时配置，无需重启主实例即可生效。然后调用 <code>check_remote_connection_health</code>，参数为 <code>{ &quot;id&quot;: &quot;personal-server&quot; }</code>，并要求 <code>reachable</code>、<code>authenticated</code> 和 <code>ready</code> <strong>全部</strong>为 <code>true</code>。这是独立的检查：可达端点可能拒绝认证，已认证的守护进程也可能仍在启动。这证明了连接可用，但不证明提供商推理可用；第 8 步还需单独验证提供商凭据。</p>
+<p>如果没有活动的管理机器人或安全的工具凭据传入路径，手动替代方案是编辑<strong>主机器</strong>的全局 <code>happy.toml</code>（不是远端的，也不是仓库内的文件）。</p>
+<pre><code class="language-toml">[connections.personal-server]
+name = &quot;Personal server&quot;
+address = &quot;REPLACE_WITH_EXACT_TAILCAT_ADDRESS&quot;
+port = 24779
+token = &quot;REPLACE_WITH_REMOTE_DAEMON_TOKEN&quot;
+</code></pre>
+<p>使用区分大小写的确切地址数据，而不是 <code>tailcat://</code> URL，并使用实际配置的端口。选择尚未使用的连接 ID，并将配置文件限制为仅所有者可访问。不要在独立连接中添加 <code>workos_organization_id</code>。协调正在进行的工作后，重启主守护进程以应用文件变更。动态连接覆盖项保存在自动生成的 <code>runtime.toml</code> 中，优先级高于全局条目；应处理已有覆盖项，而不是追加相互竞争的设置。</p>
+<p>通过主实例经过认证的 API 验证：<code>GET /v0/connections</code> 应列出远端，<code>GET /v0/connections/personal-server/api/v0/health</code> 应能到达远端并报告就绪。主凭据用于向主实例认证；它的连接层负责提供远端令牌。内置传输机制可处理此连接，无需单独的客户端登录。手动 Tailcat 客户端需要其自身的 v0.7.0 可执行文件；参见 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/tailcat.md" target="_blank" rel="noreferrer">Tailcat</a>。</p>
+<p>如果健康检查返回 401，检查远端令牌；如果不可用，检查 Tailcat 状态、出站连接和确切地址／端口。不要为排障而关闭认证。升级时保留远端的 <code>.happy/agent</code> 状态，以保全数据、令牌和 Tailcat 身份。</p>
+<h2 id="7-set-git-identity-and-if-requested-github-authentication">7. 设置 Git 身份，并按需配置 GitHub 认证<a class="heading-anchor" href="#7-set-git-identity-and-if-requested-github-authentication" aria-label="链接到 7. 设置 Git 身份，并按需配置 GitHub 认证"><span aria-hidden="true">#</span></a></h2>
+<p>无论用户是否拒绝 GitHub 设置，都必须为<strong>服务用户</strong>设置约定的 Git 身份。</p>
+<pre><code class="language-sh">sudo -u happy-agent -H git config --global user.name &quot;CONFIRMED_NAME&quot;
+sudo -u happy-agent -H git config --global user.email &quot;CONFIRMED_EMAIL&quot;
+</code></pre>
+<p>如果用户接受 GitHub 设置，按 GitHub CLI 官方说明或通过可信发行版软件包安装 <code>gh</code>（Debian／Ubuntu 上可用时执行 <code>sudo apt-get install -y gh</code>），然后验证 <code>gh --version</code>。以 <code>happy-agent</code> 而不是 root 进行认证。</p>
+<pre><code class="language-sh">sudo -u happy-agent -H gh auth login --hostname github.com --git-protocol https --web
+sudo -u happy-agent -H gh auth setup-git --hostname github.com
+sudo -u happy-agent -H gh api user --jq .login
+</code></pre>
+<p>无界面登录时，用户在自己的机器上完成浏览器／设备步骤。适用时，改用用户已确认的 GitHub Enterprise 主机。只申请所选仓库必需的访问权限，包括必要的组织 SSO 授权。没有密钥环时，<code>gh</code> 可能将令牌保存在 <code>~/.config/gh/hosts.yml</code>；应放在私有目录中，并仅允许所有者访问。</p>
+<p>如果用户明确希望复制现有 GitHub 令牌，以服务用户身份通过 stdin 私下将其传入 <code>gh auth login --hostname github.com --git-protocol https --with-token</code>，然后运行 <code>gh auth setup-git</code>。绝不让 <code>gh auth token</code> 出现在模型可见输出中，不把令牌放进 Git URL，也不复制无关 GitHub 账号。范围较窄的令牌可能不支持所有 <code>gh</code> 操作；应验证必需操作。仅设置 <code>GH_TOKEN</code> 不能证明持久的 Git 凭据辅助程序已配置完成。测试时不要依赖 SSH 操作者的环境。</p>
+<p>以服务用户通过 HTTPS 将约定的仓库克隆到 <code>/var/lib/happy-agent/projects</code>；如果未要求仓库，则创建约定的本地工作文件夹。通过 Happy 或文档中的项目 API，将其登记为<strong>远端</strong>项目。使用执行器时，改为通过远端项目 API 在执行器上克隆或登记；下述 Git 身份检查也应以执行器的服务用户运行。在该仓库中检查以下事项。</p>
+<ul>
+<li><code>git config --get user.name</code> 和 <code>git config --get user.email</code> 与约定身份一致；</li>
+<li><code>git var GIT_AUTHOR_IDENT</code> 正确解析；</li>
+<li>如果配置了远程仓库，<code>git ls-remote origin</code> 能非交互执行；</li>
+<li>GitHub 账号和仓库权限符合用户要求。</li>
+</ul>
+<p>现有仓库级身份覆盖项优先于全局值；修改有意设置的覆盖项前应询问。Git 作者身份与 GitHub 认证是两回事。读取测试不能证明写入权限；应检查已授予的仓库权限，并说明哪些尚未测试。未经明确授权，不要推送测试提交。如果用户拒绝 GitHub 设置，不要安装其 CLI 或复制其凭据；说明由此带来的私有仓库访问限制。</p>
+<h2 id="8-prove-it-is-ready-and-hand-it-over">8. 证明已就绪并完成交接<a class="heading-anchor" href="#8-prove-it-is-ready-and-hand-it-over" aria-label="链接到 8. 证明已就绪并完成交接"><span aria-hidden="true">#</span></a></h2>
+<p>通过用户实际使用的连接，对<strong>远端</strong>执行检查。</p>
+<ol>
+<li>使用 <code>POST /v0/providers/:providerId/verify</code> 和 <code>{ &quot;level&quot;: &quot;inference&quot; }</code> 验证每个选定提供商。这些检查可能产生少量提供商费用。必须得到 <code>status: &quot;passed&quot;</code>；仅有 HTTP 200 不够，因为验证失败时也可能返回 200。通过 <code>GET /v0/config</code> 查看远端模型目录，确认默认提供商／模型存在。</li>
+<li>确认由配置初始化的远端个人资料具有预期的名称和邮箱，且无需手动创建资料。远端管理机器人可使用 <code>get_local_profile</code> 检查。不要通过个人资料 API 写入。验证初始项目已经登记，且初始引导报告其实际前置条件均已满足；不要为了掩盖缺失步骤而把未完成的设置标记为完成。</li>
+<li>遵循<a href="https://happy.engineering/recepies/#testing-a-deployed-node">测试已部署的节点</a>：在远端新建临时项目，使用独立的一次性工作区和智能体，与初始项目分离。绝不复用现有项目进行测试。通过 Happy 发送一个小任务，检查工作目录、运行无害的 shell 命令，并在临时工作区内创建／读取一次性文件。确认模型推理、工具执行、存储写入和用户可见响应均正常。测试用户期望使用的每一家提供商。每个测试动作前，检查用户是否已归档临时项目；如果已归档，停止，不恢复或替换它。</li>
+<li>没有活动工作时，重启远程服务。确认 systemd 已启用，经过认证的健康检查恢复，Tailcat 端点未变化，且主实例重新连接。向测试智能体发送后续任务前，再次检查临时项目的归档状态；如果用户已经归档，就停止。只读检查初始项目保留的状态。如果启用了 GitHub，以服务用户重新检查非交互 Git 访问。重启整台机器的测试需要用户批准。</li>
+<li>验证后将临时项目归档，即使检查失败也一样，并确认其归档状态。如果用户已归档，保持归档。报告未完成的检查或清理；不要归档初始项目或其他已有项目。</li>
+</ol>
+<p>提供简洁交接：机器与连接名称、已安装版本、服务／配置／项目位置、已验证的提供商及默认模型、个人资料与 Git 身份、GitHub 账号／设置选择，以及通过了哪些检查。提供维护用的 <code>sudo systemctl status happy-agent</code> 和 <code>sudo systemctl restart happy-agent</code>，并说明凭据有效期／续期步骤。绝不包含令牌或认证文件内容。明确报告待用户完成的登录步骤或尚未验证的访问权限；仅仅能连接到守护进程，不代表智能体已经全面可用。</p></div>

@@ -1,0 +1,41 @@
+<div class="document-content"><h1 id="talk-to-your-agents-voice-with-elevenlabs">Talk to Your Agents: Voice with ElevenLabs<a class="heading-anchor" href="#talk-to-your-agents-voice-with-elevenlabs" aria-label="Link to Talk to Your Agents: Voice with ElevenLabs"><span aria-hidden="true">#</span></a></h1>
+<p>In the Happy app on your phone, tap the mic and talk. A voice agent, also called Happy, listens, sends what you ask to the coding agent in the session you are looking at, tells you when it is done, and takes your yes or no on a permission request. It runs on <a href="https://elevenlabs.io/agents" target="_blank" rel="noreferrer">ElevenAgents</a>, ElevenLabs&#x27;s conversational agent platform. Voice is the one paid thing in Happy: 20 free minutes every 30 days, then a subscription, or your own ElevenLabs agent with no limit from us.</p>
+<p><img src="https://happy.engineering/img/voice.svg" alt="How a voice conversation works. You tap the mic in the phone app, which asks Happy&#x27;s server for a conversation with your Happy sign-in. The server asks ElevenLabs how many minutes you have used in the last 30 days, under a user ID that is a one-way hash of yours, and mints a conversation token there; we keep no voice database. The token, or the paywall, comes back to the app. The app then opens a WebRTC session straight to ElevenLabs: your voice, the agent&#x27;s voice, and the session&#x27;s recent messages. What you ask for goes on to the coding agent on your computer, as a message or as allow or deny on a permission request. ElevenLabs hears your voice, the session list, recent chat, and permission requests with their arguments. Limits per 30 days: 20 minutes free, 5 hours with a subscription, and no limit from Happy with your own ElevenLabs agent." loading="lazy"></p>
+<h2 id="what-the-voice-agent-does">What the voice agent does<a class="heading-anchor" href="#what-the-voice-agent-does" aria-label="Link to What the voice agent does"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>Speaks only when spoken to.</strong> It answers to &quot;Happy, …&quot; or a clear follow-up. Anything else, it skips its turn, so you can talk to the person next to you. One sentence at a time.</li>
+<li><strong>A bridge, not a coder.</strong> It decides nothing itself. It assumes you are narrating what you will eventually ask the coding agent, and sends the request once you have formulated it.</li>
+<li><strong>Across sessions.</strong> It starts with a list of your active sessions, follows the one you focus, and hears updates from the others.</li>
+<li><strong>Reports back.</strong> When the coding agent finishes, the voice agent tells you, even if you said nothing.</li>
+<li><strong>Permissions by voice.</strong> A tool permission request is read to you. It is allowed or denied only on your word, unless you tell it to accept the ones that follow.</li>
+<li><strong>Your language.</strong> <strong>Settings → Voice</strong> sets the voice agent&#x27;s language.</li>
+</ul>
+<h2 id="how-a-conversation-starts">How a conversation starts<a class="heading-anchor" href="#how-a-conversation-starts" aria-label="Link to How a conversation starts"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>The app asks Happy&#x27;s server for a conversation, with your Happy sign-in and the ID of our ElevenLabs agent.</li>
+<li>The server derives your ElevenLabs user ID, a one-way hash of your Happy user ID under a server secret. Your Happy account is not sent; ElevenLabs sees that <code>u_…</code> string.</li>
+<li>It asks ElevenLabs for your conversations of the last 30 days and adds up their durations. ElevenLabs is the record; we keep no voice database.</li>
+<li>Within the limits, it mints a single-use conversation token from ElevenLabs under that user ID and returns it. Past them, the app shows the paywall instead.</li>
+<li>The app opens a WebRTC session with ElevenLabs on that token. From here Happy&#x27;s server is out of the loop: audio moves between your phone and ElevenLabs.</li>
+</ol>
+<p>Our ElevenLabs agent accepts only tokens minted by Happy&#x27;s server, so the agent ID in the open source app is harmless on its own.</p>
+<h2 id="what-elevenlabs-hears">What ElevenLabs hears<a class="heading-anchor" href="#what-elevenlabs-hears" aria-label="Link to What ElevenLabs hears"><span aria-hidden="true">#</span></a></h2>
+<p>Messages between your devices are <a href="https://happy.engineering/mobile/">end-to-end encrypted</a>. Voice sends some of that content to a third party, from your phone, where it is already decrypted:</p>
+<ul>
+<li>your microphone audio, and the agent&#x27;s replies;</li>
+<li>the <code>u_…</code> user ID and the system prompt;</li>
+<li>the IDs and summaries of your active sessions;</li>
+<li>for the focused session, its project path, summary, and up to 50 messages of history: your messages, the coding agent&#x27;s text, and the names and descriptions of the tools it used, without their arguments or output;</li>
+<li>new messages as they arrive, and each permission request with the tool&#x27;s name and arguments;</li>
+<li>a record of each conversation, which is what Happy&#x27;s server reads to count minutes.</li>
+</ul>
+<p>If a session holds something you would not hand to a third party, keep voice closed on it.</p>
+<h2 id="limits">Limits<a class="heading-anchor" href="#limits" aria-label="Link to Limits"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>Tier</th><th>Per 30 days</th></tr></thead><tbody><tr><td>Free</td><td>20 minutes</td></tr><tr><td>Subscribed</td><td>5 hours</td></tr><tr><td>Your own ElevenLabs agent</td><td>No limit from Happy</td></tr><tr><td>Everyone</td><td>100 conversations</td></tr></tbody></table></div>
+<p>ElevenLabs costs us about a cent a minute. The subscription in the app pays for that and for our open source work. The 100-conversation cap is a limit of the usage query, which reads at most 100 conversations; reaching it blocks voice until the window moves on, and is worth <a href="https://github.com/slopus/happy/issues" target="_blank" rel="noreferrer">an issue</a>. <strong>Settings → Voice</strong> shows your minutes and conversations against their limits.</p>
+<h2 id="bring-your-own-agent">Bring your own agent<a class="heading-anchor" href="#bring-your-own-agent" aria-label="Link to Bring your own agent"><span aria-hidden="true">#</span></a></h2>
+<p><strong>Settings → Voice → Bring your own agent</strong> takes the ID of an agent in your own ElevenLabs account. The app then connects to ElevenLabs directly with that agent and never calls Happy&#x27;s server for voice: no minutes counted, no paywall, your ElevenLabs bill. Once an agent ID is set, the app shows a prompt guide for configuring that agent.</p>
+<h2 id="gpt-live-on-happy-desktop">GPT-Live on Happy Desktop<a class="heading-anchor" href="#gpt-live-on-happy-desktop" aria-label="Link to GPT-Live on Happy Desktop"><span aria-hidden="true">#</span></a></h2>
+<p>Happy Desktop has experimental voice calls of its own, on OpenAI&#x27;s GPT-Live instead of ElevenLabs. Turn on <strong>Settings → General → Enable experimental features</strong>, then <strong>Settings → Experimental → Voice calls</strong>, and pick the account: a Codex subscription, which uses <code>gpt-live-1-codex</code> on your ChatGPT plan, or an OpenAI API key, which uses <code>gpt-live-1</code> and bills that API account. A phone button appears beside Settings. The call runs from the Happy Agent on your machine with that account, so Happy&#x27;s minutes and paywall do not apply. It steers the Desktop window rather than a coding agent: it navigates and stages a message, and you press Send.</p>
+<h2 id="why-elevenlabs">Why ElevenLabs<a class="heading-anchor" href="#why-elevenlabs" aria-label="Link to Why ElevenLabs"><span aria-hidden="true">#</span></a></h2>
+<p>A voice agent that listens continuously, handles interruptions, and speaks back without a pause is a product in itself. ElevenAgents gives us that, with per-conversation tokens so our agent accepts only what our server minted, and conversation records we can count from without a database of our own. Thank you, ElevenLabs.</p></div>

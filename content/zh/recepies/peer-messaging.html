@@ -1,0 +1,66 @@
+<div class="document-content"><h1 id="connect-two-happy-agents-over-one-websocket">通过一个 WebSocket 连接两个 Happy Agent<a class="heading-anchor" href="#connect-two-happy-agents-over-one-websocket" aria-label="链接到通过一个 WebSocket 连接两个 Happy Agent"><span aria-hidden="true">#</span></a></h1>
+<p>当桌面电脑或私有机器需要向可达的 Happy Agent 发起一条出站连接，再通过它双向交换消息时，使用本指南。桌面端不需要入站端口、公网地址或反向 URL。接口契约见 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/API_P2P.md" target="_blank" rel="noreferrer">API_P2P.md</a>。</p>
+<h2 id="reach-both-installations-for-administration">取得两个安装实例的管理访问权限<a class="heading-anchor" href="#reach-both-installations-for-administration" aria-label="链接到取得两个安装实例的管理访问权限"><span aria-hidden="true">#</span></a></h2>
+<p>任一安装实例上的参谋长，都可以通过现有的已授权 SSH／部署访问权限，或现有的托管连接，协调两端设置。对等消息通信不会开放配置端点。使用托管连接时，通过普通 API 向远端参谋长发送已获授权的设置请求。</p>
+<pre><code class="language-text">POST /v0/connections/&lt;existing-connection&gt;/api/v0/agents/&lt;remote-chief-agent-id&gt;/send
+</code></pre>
+<p>遵循主 API 的认证与发送契约。<code>text</code> 说明已获授权的设置内容，<code>content</code> 可以携带 <code>tool_call_request</code>，包含下文的确切工具及参数。通过同一管理路径观察远端执行情况。通过 SSH 部署时，写入对应的机器级 <code>happy.toml</code> 设置，并按正常流程重载配置。保留无关设置，先检查现有运行时覆盖项；绝不手动编辑自动生成的 <code>runtime.toml</code>。</p>
+<p>选择稳定的节点 ID：本示例使用 <code>desktop</code> 和 <code>server</code>。服务器通过系统 Tailscale 或其他私有网络，在 <code>100.80.0.20:24780</code> 上可达。只需保证桌面端到服务器这个方向的网络可达。如果选择通过 TLS 终止代理传输，则使用 <code>wss://</code>。本功能不会配置 Tailscale 或内嵌 Tailcat 服务。</p>
+<p>使用 Node 的 crypto 模块执行 <code>randomBytes(32).toString(&quot;base64url&quot;)</code>，生成一个私密的配对令牌。将其保存在内存或私有文件中，在两个安装实例上使用同一个值，不要让它出现在报告或命令输出中。不同的对等连接需要不同的令牌。下文的 <code>&lt;PAIR_TOKEN&gt;</code> 表示这个值。</p>
+<h2 id="configure-the-server-then-the-outbound-only-desktop">先配置服务器，再配置仅出站的桌面端<a class="heading-anchor" href="#configure-the-server-then-the-outbound-only-desktop" aria-label="链接到先配置服务器，再配置仅出站的桌面端"><span aria-hidden="true">#</span></a></h2>
+<p>让服务器上处于活动状态的管理员参谋长调用 <code>configure_peer_messaging</code>。</p>
+<pre><code class="language-json">{ &quot;enabled&quot;: true, &quot;node_id&quot;: &quot;server&quot;, &quot;listen&quot;: true, &quot;host&quot;: &quot;100.80.0.20&quot;, &quot;port&quot;: 24780 }
+</code></pre>
+<p>然后调用 <code>set_peer_connection</code>。</p>
+<pre><code class="language-json">{ &quot;node_id&quot;: &quot;desktop&quot;, &quot;connection&quot;: { &quot;role&quot;: &quot;accept&quot;, &quot;token&quot;: &quot;&lt;PAIR_TOKEN&gt;&quot; } }
+</code></pre>
+<p>这条接收配置中不应包含桌面端 URL。轮询 <code>debug_peer_connections</code>，直到服务器无错误地进入监听状态，并完成接收端对等连接配置。</p>
+<p>在桌面端调用 <code>configure_peer_messaging</code>。</p>
+<pre><code class="language-json">{ &quot;enabled&quot;: true, &quot;node_id&quot;: &quot;desktop&quot;, &quot;listen&quot;: false }
+</code></pre>
+<p>然后调用 <code>set_peer_connection</code>。</p>
+<pre><code class="language-json">{
+    &quot;node_id&quot;: &quot;server&quot;,
+    &quot;connection&quot;: { &quot;role&quot;: &quot;connect&quot;, &quot;url&quot;: &quot;ws://100.80.0.20:24780&quot;, &quot;token&quot;: &quot;&lt;PAIR_TOKEN&gt;&quot; }
+}
+</code></pre>
+<p>配置工具的确认响应表示配置意图已被持久化接纳。设定明确的截止时间，轮询调试信息，直到两端都报告 <code>connected: true</code>，且具有<strong>相同的会话 ID</strong>。桌面端必须报告 <code>listenEnabled: false</code> 和 <code>listening: false</code>。服务器必须为 <code>role: &quot;accept&quot;</code>，且没有反向 URL。连接或认证失败只会以安全的诊断信息形式呈现。</p>
+<p>服务器上等效的机器级设置如下。</p>
+<pre><code class="language-toml">[peer_messaging]
+enabled = true
+node_id = &quot;server&quot;
+listen = true
+host = &quot;100.80.0.20&quot;
+port = 24780
+
+[peer_messaging.peers.desktop]
+role = &quot;accept&quot;
+token = &quot;&lt;PAIR_TOKEN&gt;&quot;
+</code></pre>
+<p>桌面端如下。</p>
+<pre><code class="language-toml">[peer_messaging]
+enabled = true
+node_id = &quot;desktop&quot;
+listen = false
+
+[peer_messaging.peers.server]
+role = &quot;connect&quot;
+url = &quot;ws://100.80.0.20:24780&quot;
+token = &quot;&lt;PAIR_TOKEN&gt;&quot;
+</code></pre>
+<p>这些工具会持久化私有的自动生成运行时覆盖项，无需重启守护进程。项目设置不能配置对等连接。</p>
+<h2 id="verify-live-health-and-both-message-directions">验证实时健康状态与双向消息通信<a class="heading-anchor" href="#verify-live-health-and-both-message-directions" aria-label="链接到验证实时健康状态与双向消息通信"><span aria-hidden="true">#</span></a></h2>
+<p>在桌面端调用 <code>check_peer_connection</code>，参数为 <code>{&quot;node_id&quot;:&quot;server&quot;}</code>，在服务器上以 <code>{&quot;node_id&quot;:&quot;desktop&quot;}</code> 调用同一工具。两端都必须报告可达、已认证且已就绪。这些检查通过现有会话的 ping/pong 完成；服务器不会反向连接桌面端。</p>
+<p>遵循已部署节点的验证规则：分别通过两个安装实例各自独立认证的主 API，新建一次性项目和智能体，记录返回的 Agent ID，并将它们告知两个智能体。每条消息发送前都要确认项目仍处于活动状态。对等 API 不执行发现操作。</p>
+<p>从桌面端的验证智能体调用 <code>send_peer_agent_message</code>。</p>
+<pre><code class="language-json">{
+    &quot;node_id&quot;: &quot;server&quot;,
+    &quot;to_agent_id&quot;: &quot;&lt;SERVER_TEST_AGENT_ID&gt;&quot;,
+    &quot;text&quot;: &quot;Peer setup probe. Reply through send_peer_agent_message to node desktop, Agent ID &lt;DESKTOP_TEST_AGENT_ID&gt;, saying: Peer round trip complete.&quot;
+}
+</code></pre>
+<p>观察服务器智能体对话记录中的来源节点与来源智能体标识、服务器智能体发出回复时的工具调用，以及桌面端对话记录中收到的回复。确认调试信息仍显示两端使用相同会话 ID。发送成功的确认意味着消息已被持久化收件箱接纳；实际观察到回复，才能证明两个方向无需另建连接就能正常工作。</p>
+<p>重连只恢复会话，绝不会重放消息。确认响应丢失可能意味着消息已经送达；检查接收方，并在确需重试时复用报告的消息 ID。如果两个临时项目仍处于活动状态，将其归档，并通过主 API 确认清理完成。报告实时健康状态、往返通信证据、桌面端仅出站状态及清理结果，不包含凭据。</p>
+<h2 id="diagnose-rotate-or-disconnect">诊断、轮换或断开连接<a class="heading-anchor" href="#diagnose-rotate-or-disconnect" aria-label="链接到诊断、轮换或断开连接"><span aria-hidden="true">#</span></a></h2>
+<p>绑定错误只与监听的服务器有关。主动连接端断开时，可能是节点 ID、令牌、端点、TLS／私有网络可达性或角色设置有误。两端角色必须互补。旧会话关闭前，重复会话会被拒绝；心跳用于检测半开连接。</p>
+<p>在两个节点上通过 <code>set_peer_connection</code> 轮换配对令牌。旧会话会关闭，主动连接端使用新令牌重新连接。再次轮询调试信息并执行 ping。<code>remove_peer_connection</code> 撤销本地的该对等连接；断开一对节点时，两端都要配置。调用 <code>configure_peer_messaging</code>，参数为 <code>{&quot;enabled&quot;:false}</code>，设置应用后会关闭本地会话并取消重连任务。链路不可用期间，本地智能体继续工作。</p></div>

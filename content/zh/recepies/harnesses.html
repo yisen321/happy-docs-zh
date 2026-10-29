@@ -1,0 +1,78 @@
+<div class="document-content"><h1 id="harnesses-claude-code-codex-cli-antigravity-opencode-and-acp-agents">执行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体<a class="heading-anchor" href="#harnesses-claude-code-codex-cli-antigravity-opencode-and-acp-agents" aria-label="链接到 执行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体"><span aria-hidden="true">#</span></a></h1>
+<p>当用户希望 Happy 智能体使用其他厂商完整的智能体，而不是 Happy 自己的执行循环时，使用本操作指南：例如直接使用 Claude Code、Codex CLI、Google Antigravity、OpenCode，或任何提供 <a href="https://agentclientprotocol.com" target="_blank" rel="noreferrer">Agent Client Protocol</a> 服务器的智能体。账号及其凭据仍在<a href="https://happy.engineering/recepies/accounts-and-models/">账号与模型</a>中管理；执行框架仅决定由谁在这些账号上运行智能体循环。</p>
+<h2 id="what-changes-for-the-user">用户体验会有哪些变化<a class="heading-anchor" href="#what-changes-for-the-user" aria-label="链接到 用户体验会有哪些变化"><span aria-hidden="true">#</span></a></h2>
+<p>Happy 自己的执行框架使用 Happy 的提示词、工具和上下文压缩来运行循环。<code>claude_code</code> 执行框架在 <code>claude</code> 账号上直接运行 Claude Code：使用它自己的提示词、工具、设置、技能、子智能体及上下文压缩。<code>codex_cli</code> 则在 <code>codex</code> 账号上以同样方式运行 Codex。Antigravity、OpenCode 和其他 ACP 智能体自行登录，因此它们各自以独立账号的形式提供，名称与其执行框架相同。</p>
+<p>无论哪种方式，对话始终属于 Happy。Happy 的历史记录是正式记录，智能体自己的会话会与之保持同步。Happy 的工具（项目、子智能体、产物、消息等）通过 MCP 提供给智能体，Happy 的权限模式也会映射到智能体自身的权限模式。智能体工作时发送消息可以引导它调整方向：Claude Code 和 Codex CLI 会在回合中途接收消息；Antigravity、OpenCode 和其他 ACP 智能体会被中断，然后从新消息继续。停止操作会结束智能体当前回合及其正在执行的命令。</p>
+<div class="document-table-wrap"><table><thead><tr><th>执行框架</th><th>运行内容</th><th>使用账号</th><th>机器上需要准备的内容</th></tr></thead><tbody><tr><td><code>happy</code></td><td>Happy 自己的循环</td><td>所有提供商（默认）</td><td>无需额外准备</td></tr><tr><td><code>claude_code</code></td><td>通过 Agent SDK 运行 Claude Code</td><td><code>claude</code> 提供商（默认全部）</td><td>无需额外准备；Happy 内置 Claude Code</td></tr><tr><td><code>codex_cli</code></td><td>通过 <code>codex app-server</code> 运行 Codex</td><td><code>codex</code> 提供商（默认全部）</td><td>固定版本的 Codex、一个 <code>codex</code>，或 <code>npx</code></td></tr><tr><td><code>antigravity</code></td><td>通过 <code>antigravity-acp</code> 运行 Antigravity</td><td>自行登录的账号</td><td>已登录的 <code>agy</code>、Bun 和 <code>npx</code></td></tr><tr><td><code>opencode</code></td><td>通过 <code>opencode acp</code> 运行 OpenCode</td><td>自行登录的账号</td><td>已登录的 <code>opencode</code></td></tr><tr><td>任意名称，<code>acp</code></td><td>通过其 <code>command</code> 运行任意 ACP 智能体</td><td>自行登录的账号</td><td>已安装并登录的对应智能体</td></tr></tbody></table></div>
+<h2 id="before-editing">修改之前<a class="heading-anchor" href="#before-editing" aria-label="链接到 修改之前"><span aria-hidden="true">#</span></a></h2>
+<p>遵循<a href="https://happy.engineering/recepies/accounts-and-models/#before-editing">账号与模型</a>中的说明：修改的文件是用户级 <code>happy.toml</code>；读取时应遮盖凭据，先备份，且绝不打印或复制凭据。</p>
+<h2 id="add-harnesses">添加执行框架<a class="heading-anchor" href="#add-harnesses" aria-label="链接到 添加执行框架"><span aria-hidden="true">#</span></a></h2>
+<p>账号保持不变。为每个执行框架添加一张 <code>[harnesses.&lt;id&gt;]</code> 配置表；写入该表即启用，设置 <code>enabled = false</code> 则再次禁用。内置 ID 无需指定 <code>type</code>。</p>
+<pre><code class="language-toml">[providers.claude]                       # built-in; shows as &quot;Current CLI&quot;
+enabled = true
+
+[providers.claude_alex_acme]
+type = &quot;claude&quot;
+name = &quot;alex acme&quot;
+oauth_token = &quot;&lt;from claude setup-token&gt;&quot;
+
+[providers.codex]                        # built-in; shows as &quot;Current CLI&quot;
+enabled = true
+
+[harnesses.claude_code]                  # Claude Code on these accounts
+providers = [&quot;claude&quot;, &quot;claude_alex_acme&quot;]   # default: every type = &quot;claude&quot; provider
+
+[harnesses.codex_cli]                    # Codex CLI on every codex account
+# command = &quot;codex&quot;                      # optional: a codex of your choice
+# args = [&quot;app-server&quot;]
+
+[harnesses.antigravity]                  # shows as &quot;Antigravity&quot;
+
+[harnesses.opencode]                     # shows as &quot;OpenCode&quot;
+
+[harnesses.goose]                        # any ACP agent
+type = &quot;acp&quot;
+name = &quot;Goose&quot;
+command = &quot;goose&quot;
+args = [&quot;acp&quot;]
+env = { GOOSE_PROVIDER = &quot;openai&quot; }
+</code></pre>
+<p><code>[harnesses.happy]</code> 默认存在。为它设置 <code>providers = [...]</code>，可将 Happy 自身的循环限制在这些账号上；或者设置 <code>enabled = false</code>，只保留外部智能体。</p>
+<p>Claude Code 使用账号的 <code>oauth_token</code>、<code>api_key</code>、<code>auth_token</code> 或 <code>config_dir</code>；对于内置 <code>claude</code>，则使用机器上的 Claude Code 登录状态。Codex CLI 使用账号的 <code>api_key</code>，或者将存放 <code>auth_file</code>（文件名必须为 <code>auth.json</code>）的文件夹作为 <code>CODEX_HOME</code>；内置 <code>codex</code> 则使用 <code>~/.codex</code>。Antigravity 和 OpenCode 使用自己的登录状态；若要改用密钥，请在它们的执行框架上设置 <code>api_key</code>。通用 <code>acp</code> 智能体只能通过 <code>env</code> 或自身登录获得凭据。</p>
+<p>然后<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#applying-configuration-changes" target="_blank" rel="noreferrer">重新加载守护进程</a>。</p>
+<h2 id="models">模型<a class="heading-anchor" href="#models" aria-label="链接到 模型"><span aria-hidden="true">#</span></a></h2>
+<p>每个智能体自行决定提供哪些模型。每次守护进程启动时，它会在后台针对每个账号启动一次所有已启用的执行框架，打开一个空会话但不发送提示词，读取智能体提供的模型与推理力度，并保存结果。模型 ID 为 <code>&lt;harness type&gt;/&lt;the agent&#x27;s own model value&gt;</code>，例如 <code>claude-code/opus</code>、<code>codex-cli/gpt-6.1-sol</code>、<code>opencode/openai/gpt-5.5</code>；通用智能体则形如 <code>acp/goose/&lt;model&gt;</code>。</p>
+<p>选择器会列出每个账号上各执行框架的模型：Happy 的模型旁边会出现 <code>Claude Code · Opus</code> 等模型。在智能体首次返回结果之前，Claude Code、Codex CLI 和 Antigravity 会提供一个简短的内置列表；OpenCode 和通用 ACP 智能体则不提供任何模型。如果某个智能体始终没有返回结果，守护进程日志会说明原因，通常是未登录或命令不存在。</p>
+<p>执行框架可以从智能体提供的模型中进行筛选、隐藏和排序：</p>
+<pre><code class="language-toml">[harnesses.claude_code]
+include_models = [&quot;claude-code/opus&quot;, &quot;claude-code/sonnet&quot;]   # only these, in this order
+exclude_models = [&quot;claude-code/haiku&quot;]
+</code></pre>
+<p>智能体未提供的 ID 会被忽略，且 <code>exclude_models</code> 优先。账号自身的 <code>include_models</code> 和 <code>exclude_models</code> 仍作用于其上的所有模型，因此，如果账号已经设置筛选，也应在其中列出 Claude Code 模型。智能池绝不会轮换外部智能体：Claude Code 或 Codex 对话始终留在启动它的账号上。在 Happy 循环和外部智能体之间切换对话，会通过交接开启一个全新的上下文。</p>
+<h2 id="sub-agents">子智能体<a class="heading-anchor" href="#sub-agents" aria-label="链接到 子智能体"><span aria-hidden="true">#</span></a></h2>
+<p>任意 Happy 智能体都可以通过 <code>create_agent</code> 创建子智能体，通过 <code>create_subtask</code> 创建子任务，并使用其自身执行框架可访问的任何执行框架。两者都接受 <code>harness</code>、<code>provider</code>、<code>model</code> 和 <code>effort</code>；省略 <code>harness</code> 或 <code>provider</code> 时，如果创建者自己的对应选项能提供该模型，就沿用它；否则使用唯一能提供该模型的选项。工具描述会列出智能体可以用来启动其他智能体的模型，每个模型一行，包含其执行框架、账号和推理力度；内容固定为对话开始时的状态，之后不变，以保持提示词缓存有效。当列表变化时，智能体会收到一条隐藏的系统通知，列明删除和新增的行。<code>agent_options</code> 列出当前模型，而 <code>agent_options({ usage: true })</code> 还会补充各账号的额度：Claude、Codex 和 Grok 账号使用守护进程最新读取的额度，Antigravity 使用它自行报告的额度。</p>
+<p>默认情况下，Happy 自己的循环只能访问那些运行 Happy 自身无法运行的模型的外部执行框架，目前是 <code>antigravity</code>；Claude Code、Codex CLI 和 OpenCode 运行的模型，Happy 已经可以运行。外部执行框架可以访问其他所有外部执行框架，但不能访问 Happy 自己的循环。每个执行框架始终可以访问自身。<code>subagent_harnesses</code> 可替换某个执行框架的默认规则：</p>
+<pre><code class="language-toml">[harnesses.happy]
+subagent_harnesses = [&quot;antigravity&quot;, &quot;claude_code&quot;]   # Happy may also start Claude Code agents
+
+[harnesses.antigravity]
+subagent_harnesses = []                               # Antigravity agents start only Antigravity
+</code></pre>
+<p>外部执行框架上的子智能体是一个普通 Happy 智能体，拥有自己独立的外部会话。外部智能体自身创建的子智能体（Claude Code 的 Task 工具、Codex 的智能体）则留在其内部；Happy 会将其中每个显示为一次工具调用。</p>
+<h2 id="antigravity-from-happy">从 Happy 使用 Antigravity<a class="heading-anchor" href="#antigravity-from-happy" aria-label="链接到 从 Happy 使用 Antigravity"><span aria-hidden="true">#</span></a></h2>
+<p>要让 Happy 智能体使用用户的 Google 账号启动 Antigravity 会话：</p>
+<ol>
+<li>在机器上安装 Antigravity 的 <code>agy</code>、Bun 和 Node 的 <code>npx</code>。让用户运行一次 <code>agy</code> 并登录；Happy 绝不处理 Google 登录。</li>
+<li>添加 <code>[harnesses.antigravity]</code> 并<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#applying-configuration-changes" target="_blank" rel="noreferrer">重新加载守护进程</a>。<code>Antigravity</code> 账号会携带其模型出现在选择器中，例如 <code>antigravity/gemini-3.8-flash</code>。</li>
+<li>在任意 Happy 会话中，请求创建 Antigravity 子智能体或子任务。智能体使用 <code>create_agent</code> 描述中列出的 Antigravity 模型（<code>agent_options({ usage: true })</code> 会补充各额度窗口的剩余额度，来源为 <code>agy -p /usage</code>，最多每五分钟读取一次），并以 <code>model = &quot;antigravity/gemini-3.8-flash&quot;</code> 启动。</li>
+</ol>
+<p>额度目前只对智能体显示；应用的用量面板尚未展示 Antigravity。</p>
+<h2 id="generic-acp-agents">通用 ACP 智能体<a class="heading-anchor" href="#generic-acp-agents" aria-label="链接到 通用 ACP 智能体"><span aria-hidden="true">#</span></a></h2>
+<p>通用智能体只有接受通过 ACP 配置的 HTTP MCP 服务器，才能获得 Happy 的工具。它的模型选择器必须是类别为 <code>model</code> 的 ACP 会话配置选项。Happy 的权限模式会响应智能体的权限请求（Read only 会拒绝这些请求）；智能体不经询问自行执行的所有操作，都遵循它自己的设置，因此应将这些设置调整为符合用户预期的状态。</p>
+<h2 id="check">检查<a class="heading-anchor" href="#check" aria-label="链接到 检查"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>在临时项目中（参见<a href="https://happy.engineering/recepies/#testing-a-deployed-node">测试已部署节点</a>），使用新执行框架的模型启动一个会话，并确认其模型出现在选择器中。</li>
+<li>让它使用自己的工具创建文件，再调用一个 Happy 工具，例如列出项目。确认两项操作都已执行。</li>
+<li>在它执行长时间运行的命令时发送第二条消息，确认它会据此调整方向。</li>
+<li>在 Happy 会话中，让它调用 <code>agent_options</code>，确认当 Happy 可访问新执行框架时，其模型已经列出；然后让它在该执行框架上创建一个子智能体。</li>
+</ol></div>

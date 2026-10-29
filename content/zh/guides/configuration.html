@@ -1,0 +1,51 @@
+<div class="document-content"><h1 id="configuration">配置<a class="heading-anchor" href="#configuration" aria-label="链接到配置"><span aria-hidden="true">#</span></a></h1>
+<p>Happy 会读取两种可选的 TOML 文件：一份机器级配置，以及每个仓库各自的一份配置。它们设置默认权限模式、网络允许列表、受保护路径、工作区初始化、提供商和 Docker。</p>
+<aside class="cos-prompt" aria-label="询问参谋长"><p class="cos-prompt-label">要修改配置，只需告诉<a href="https://happy.engineering/chief-of-staff/">参谋长</a>：</p><ul><li class="cos-prompt-line"><div class="cos-prompt-head"><span class="cos-prompt-example">示例</span><button type="button" class="cos-prompt-copy" data-state="idle" aria-label="复制提示词：允许沙箱中的命令访问 api.github.com 和 registry.npmjs.org"><svg viewbox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M12.7587 2H16.2413C17.0463 1.99999 17.7106 1.99998 18.2518 2.04419C18.8139 2.09012 19.3306 2.18868 19.816 2.43597C20.5686 2.81947 21.1805 3.43139 21.564 4.18404C21.8113 4.66937 21.9099 5.18608 21.9558 5.74817C22 6.28936 22 6.95372 22 7.75868V11.2413C22 12.0463 22 12.7106 21.9558 13.2518C21.9099 13.8139 21.8113 14.3306 21.564 14.816C21.1805 15.5686 20.5686 16.1805 19.816 16.564C19.3306 16.8113 18.8139 16.9099 18.2518 16.9558C17.8906 16.9853 17.4745 16.9951 16.9984 16.9984C16.9951 17.4745 16.9853 17.8906 16.9558 18.2518C16.9099 18.8139 16.8113 19.3306 16.564 19.816C16.1805 20.5686 15.5686 21.1805 14.816 21.564C14.3306 21.8113 13.8139 21.9099 13.2518 21.9558C12.7106 22 12.0463 22 11.2413 22H7.75868C6.95372 22 6.28936 22 5.74818 21.9558C5.18608 21.9099 4.66937 21.8113 4.18404 21.564C3.43139 21.1805 2.81947 20.5686 2.43597 19.816C2.18868 19.3306 2.09012 18.8139 2.04419 18.2518C1.99998 17.7106 1.99999 17.0463 2 16.2413V12.7587C1.99999 11.9537 1.99998 11.2894 2.04419 10.7482C2.09012 10.1861 2.18868 9.66937 2.43597 9.18404C2.81947 8.43139 3.43139 7.81947 4.18404 7.43598C4.66937 7.18868 5.18608 7.09012 5.74817 7.04419C6.10939 7.01468 6.52548 7.00487 7.00162 7.00162C7.00487 6.52548 7.01468 6.10939 7.04419 5.74817C7.09012 5.18608 7.18868 4.66937 7.43598 4.18404C7.81947 3.43139 8.43139 2.81947 9.18404 2.43597C9.66937 2.18868 10.1861 2.09012 10.7482 2.04419C11.2894 1.99998 11.9537 1.99999 12.7587 2ZM9.00176 7L11.2413 7C12.0463 6.99999 12.7106 6.99998 13.2518 7.04419C13.8139 7.09012 14.3306 7.18868 14.816 7.43598C15.5686 7.81947 16.1805 8.43139 16.564 9.18404C16.8113 9.66937 16.9099 10.1861 16.9558 10.7482C17 11.2894 17 11.9537 17 12.7587V14.9982C17.4455 14.9951 17.7954 14.9864 18.089 14.9624C18.5274 14.9266 18.7516 14.8617 18.908 14.782C19.2843 14.5903 19.5903 14.2843 19.782 13.908C19.8617 13.7516 19.9266 13.5274 19.9624 13.089C19.9992 12.6389 20 12.0566 20 11.2V7.8C20 6.94342 19.9992 6.36113 19.9624 5.91104C19.9266 5.47262 19.8617 5.24842 19.782 5.09202C19.5903 4.7157 19.2843 4.40973 18.908 4.21799C18.7516 4.1383 18.5274 4.07337 18.089 4.03755C17.6389 4.00078 17.0566 4 16.2 4H12.8C11.9434 4 11.3611 4.00078 10.911 4.03755C10.4726 4.07337 10.2484 4.1383 10.092 4.21799C9.7157 4.40973 9.40973 4.7157 9.21799 5.09202C9.1383 5.24842 9.07337 5.47262 9.03755 5.91104C9.01357 6.20463 9.00489 6.55447 9.00176 7ZM5.91104 9.03755C5.47262 9.07337 5.24842 9.1383 5.09202 9.21799C4.7157 9.40973 4.40973 9.7157 4.21799 10.092C4.1383 10.2484 4.07337 10.47262 4.03755 10.911C4.00078 11.3611 4 11.9434 4 12.8V16.2C4 17.0566 4.00078 17.6389 4.03755 18.089C4.07337 18.5274 4.1383 18.7516 4.21799 18.908C4.40973 19.2843 4.7157 19.5903 5.09202 19.782C5.24842 19.8617 5.47262 19.9266 5.91104 19.9624C6.36113 19.9992 6.94342 20 7.8 20H11.2C12.0566 20 12.6389 19.9992 13.089 19.9624C13.5274 19.9266 13.7516 19.8617 13.908 19.782C14.2843 19.5903 14.5903 19.2843 14.782 18.908C14.8617 18.7516 14.9266 18.5274 14.9624 18.089C14.9992 17.6389 15 17.0566 15 16.2V12.8C15 11.9434 14.9992 11.3611 14.9624 10.911C14.9266 10.4726 14.8617 10.2484 14.782 10.092C14.5903 9.7157 14.2843 9.40973 13.908 9.21799C13.7516 9.1383 13.5274 9.07337 13.089 9.03755C12.6389 9.00078 12.0566 9 11.2 9H7.8C6.94342 9 6.36113 9.00078 5.91104 9.03755Z"></path></svg><span aria-hidden="true">复制</span></button></div><p class="cos-prompt-text">允许沙箱中的命令访问 api.github.com 和 registry.npmjs.org</p><span class="cos-prompt-status" role="status"></span></li></ul></aside>
+<h2 id="where-the-files-live">文件位置<a class="heading-anchor" href="#where-the-files-live" aria-label="链接到文件位置"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>作用范围</th><th>文件</th></tr></thead><tbody><tr><td>机器</td><td><code>~/Happy/Config/happy.toml</code>（macOS）、<code>~/happy/config/happy.toml</code>（Linux）</td></tr><tr><td>仓库</td><td>仓库根目录下的 <code>happy.toml</code></td></tr></tbody></table></div>
+<p>机器配置文件在首次启动时生成并带有注释，之后不会被覆盖。全局 <code>AGENTS.md</code> 与它位于同一目录。仓库配置在允许覆盖的地方优先；提供商、Docker 以及任何会对外开放机器的设置只能在机器级配置中指定。智能体对仓库配置文件只有只读权限。</p>
+<p>MCP 服务器配置放在这两个位置各自的 <code>mcp.toml</code> 中。参见<a href="https://happy.engineering/extending/">技能与 MCP</a>。</p>
+<h2 id="default-permission-mode">默认权限模式<a class="heading-anchor" href="#default-permission-mode" aria-label="链接到默认权限模式"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-toml">[defaults]
+permission_mode = &quot;workspace_write&quot;   # read_only | workspace_write | auto | full_access
+</code></pre>
+<h2 id="network-allowlist-for-sandboxed-commands">沙箱命令的网络允许列表<a class="heading-anchor" href="#network-allowlist-for-sandboxed-commands" aria-label="链接到沙箱命令的网络允许列表"><span aria-hidden="true">#</span></a></h2>
+<p>沙箱命令不能访问网络，除非目标列在这里。智能体不能自行添加域名；参谋长只有在你要求时才会编辑此文件，在 Auto 模式下该编辑会经过审查。</p>
+<pre><code class="language-toml">[network]
+allowed_domains = [&quot;api.github.com&quot;, &quot;*.npmjs.org&quot;, &quot;npmjs.org&quot;]
+allowed_ports = [443]
+denied_domains = [&quot;uploads.example.com&quot;]
+</code></pre>
+<p><code>*.</code> 不包含根域名。只读模式忽略此设置并保持离线；完全访问模式也忽略此设置，但不受网络限制。</p>
+<h2 id="protected-paths">受保护路径<a class="heading-anchor" href="#protected-paths" aria-label="链接到受保护路径"><span aria-hidden="true">#</span></a></h2>
+<p>没有完全访问权限时，这些路径始终只读，即使位于工作区内也一样。机器级与仓库级列表会合并。</p>
+<pre><code class="language-toml">[permissions]
+protected_paths = [&quot;master-plans&quot;, &quot;.env.production&quot;]
+</code></pre>
+<h2 id="workspace-setup-commands-and-synced-files">工作区初始化命令与同步文件<a class="heading-anchor" href="#workspace-setup-commands-and-synced-files" aria-label="链接到工作区初始化命令与同步文件"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-toml">[workspace]
+setup_commands = [&quot;pnpm install --frozen-lockfile&quot;, &quot;pnpm build&quot;]
+sync = [&quot;.env&quot;]
+protected_sync = [&quot;.env.production&quot;]
+</code></pre>
+<p>初始化命令被视为可信项目代码，以完全访问权限运行。命令失败会被记录，但工作区仍可使用。</p>
+<h2 id="providers-and-accounts">提供商与账户<a class="heading-anchor" href="#providers-and-accounts" aria-label="链接到提供商与账户"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-toml">[providers.grok]
+enabled = false
+
+[providers.work_codex]
+type = &quot;codex&quot;
+enabled = true
+auth_file = &quot;/Users/me/.codex-work/auth.json&quot;
+include_models = [&quot;openai/gpt-5.6-sol&quot;]
+</code></pre>
+<p>存在凭据时，内置提供商会启用。<code>include_models</code> 和 <code>exclude_models</code> 用于精简选择器。<code>hidden = true</code> 仅影响显示：它会让账户无法被直接选择，但智能提供商（<code>type = &quot;smart&quot;</code>、<code>strategy = &quot;round_robin&quot;</code>）仍可将请求路由给它。参见<a href="https://happy.engineering/models/#use-several-accounts-of-one-provider">同一提供商的多个账户</a>。</p>
+<h2 id="docker-sessions">Docker 会话<a class="heading-anchor" href="#docker-sessions" aria-label="链接到 Docker 会话"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-toml">[docker]
+image = &quot;my-project-dev:local&quot;
+workdir = &quot;/workspace&quot;
+mounts = [{ source = &quot;.&quot;, target = &quot;/workspace&quot; }]
+</code></pre>
+<p>容器内使用同一套权限模型。Happy 会将自己的沙箱挂载到容器中，无需安装额外软件包。Happy 不会自行拉取镜像。</p>
+<h2 id="everything-else-in-happy-toml">happy.toml 中的其他设置<a class="heading-anchor" href="#everything-else-in-happy-toml" aria-label="链接到 happy.toml 中的其他设置"><span aria-hidden="true">#</span></a></h2>
+<p>生成的 <code>happy.toml</code> 通过内联说明记录其余设置：在线状态、Tailcat、团队模式、提供商传输方式、Bedrock、终端主题、崩溃诊断及功能开关。</p></div>

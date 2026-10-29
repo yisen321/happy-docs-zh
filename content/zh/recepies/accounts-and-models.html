@@ -1,0 +1,93 @@
+<div class="document-content"><h1 id="accounts-models-effort-and-service-tier">账号、模型、推理强度和服务层级<a class="heading-anchor" href="#accounts-models-effort-and-service-tier" aria-label="链接到账号、模型、推理强度和服务层级"><span aria-hidden="true">#</span></a></h1>
+<p>当用户想添加提供商账号或将账号组成池、限制或更换模型、设置默认推理强度或服务层级，或把现有会话迁移到另一提供商时，使用本操作指南。如果要让 Claude Code、Codex CLI、Antigravity、OpenCode 或其他 ACP 智能体本身使用这些账号运行，请添加一个<a href="https://happy.engineering/recepies/harnesses/">运行框架</a>。这里的所有设置都是用户 <code>happy.toml</code> 中的机器配置。参考资料见<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md" target="_blank" rel="noreferrer">配置</a>。</p>
+<h2 id="before-editing">编辑之前<a class="heading-anchor" href="#before-editing" aria-label="链接到编辑之前"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>
+<p>文件位于 <code>~/Happy/Config/happy.toml</code>（macOS）或 <code>~/happy/config/happy.toml</code>（Linux）。它不在工作区内，因此写入需要经过审查的完全访问权限。</p>
+</li>
+<li>
+<p>读取时隐藏凭据：</p>
+<pre><code class="language-sh">sed -E &#x27;s/^([[:space:]]*(oauth_token|api_key)[[:space:]]*=).*/\1 &quot;&lt;redacted&gt;&quot;/&#x27; ~/Happy/Config/happy.toml
+</code></pre>
+</li>
+<li>
+<p>备份文件：<code>cp -p happy.toml happy.toml.bak-&lt;timestamp&gt;</code>。</p>
+</li>
+<li>
+<p>绝不要打印、复制或发送凭据，也绝不要在账号或机器之间复制凭据。</p>
+</li>
+</ol>
+<h2 id="accounts">账号<a class="heading-anchor" href="#accounts" aria-label="链接到账号"><span aria-hidden="true">#</span></a></h2>
+<p>每个额外账号都是一个 <code>[providers.&lt;id&gt;]</code> 表，包含 <code>type</code> 和可选的友好名称 <code>name</code>。内置的 <code>claude</code>、<code>codex</code> 和 <code>grok</code> 默认显示为 <strong>Current CLI（当前 CLI）</strong>；其他未命名的账号则使用 ID 的可读形式。配置、默认值和账号池仍使用 ID。</p>
+<p>用户明确指定的标签要原样使用。提出名称建议时，优先选择容易识别的邮箱式标签，例如 <code>alex@example.com</code>、<code>alex@acme</code> 或 <code>alex.work@example.com</code>。保留能区分账号的用户名和域名细节，避免过短的别名。省略多余的厂商或套餐前后缀：提供商分组已经提供了这些背景信息。这只是选择名称时的建议。产品会原样显示明确设置的名称，绝不会自动缩短邮箱或追加套餐名称。</p>
+<div class="document-table-wrap"><table><thead><tr><th>厂商</th><th>设置</th><th>用户如何获取凭据</th></tr></thead><tbody><tr><td>Claude</td><td><code>type = &quot;claude&quot;</code>、<code>oauth_token</code></td><td>登录该账号后运行 <code>claude setup-token</code>；由用户将其粘贴到文件中。</td></tr><tr><td>Codex</td><td><code>type = &quot;codex&quot;</code>、<code>auth_file</code></td><td>使用独立的主目录登录，例如 <code>CODEX_HOME=~/.codex-work codex login</code>；指向其中的 <code>auth.json</code>。</td></tr><tr><td>Grok</td><td><code>type = &quot;grok&quot;</code>、<code>auth_file</code></td><td>该账号的 Grok 身份验证文件。</td></tr><tr><td>Bedrock</td><td><code>type = &quot;bedrock&quot;</code>、<code>profile</code>、<code>region</code></td><td>该账号的 AWS 配置档案。</td></tr><tr><td>兼容 OpenAI 的服务</td><td><code>type = &quot;openai_compatible&quot;</code>、<code>base_url</code>、<code>api_key_env</code>、<code>models</code></td><td>从厂商获取 API 密钥，并导出到守护进程环境中。详见下文。</td></tr></tbody></table></div>
+<p><strong>添加兼容 OpenAI 的厂商</strong>（OpenRouter、Together、Fireworks、DeepSeek、vLLM、LM Studio）只需一个表，并在 <code>models</code> 中填写厂商的精确模型 ID：</p>
+<pre><code class="language-toml">[providers.openrouter]
+type = &quot;openai_compatible&quot;
+name = &quot;OpenRouter&quot;
+enabled = true
+base_url = &quot;https://openrouter.ai/api/v1&quot;
+api_key_env = &quot;OPENROUTER_API_KEY&quot;
+models = [&quot;deepseek/deepseek-v4.1-flash-1017&quot;]
+reasoning_field = &quot;reasoning&quot;
+
+[providers.openrouter.request]
+reasoning = { enabled = true }
+</code></pre>
+<ul>
+<li>不要把密钥写入文件：将其放入 <code>api_key_env</code> 指定的变量，再从包含该变量的 shell 中重新加载守护进程。绝不要把密钥粘贴到 <code>happy.toml</code>、提交或消息中。</li>
+<li>只列出支持工具调用的聊天模型。先查看厂商的模型页面。在 OpenRouter 上，<code>supported_parameters</code> 必须包含 <code>tools</code>。</li>
+<li>上下文窗口、图像输入和推理强度会在后台从厂商的 <code>/models</code> 获取。可在 <code>[providers.&lt;id&gt;.model_overrides.&quot;&lt;model&gt;&quot;]</code> 下覆盖其中任意设置。<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#openai-compatible-endpoints" target="_blank" rel="noreferrer">参考文档</a>列出了全部设置。</li>
+<li>验证时，检查 <code>GET /v0/config</code> 是否在新提供商下列出这些模型，然后运行一轮使用工具的对话。</li>
+</ul>
+<p>将同类型账号放到智能提供商后面组成<strong>账号池</strong>，并隐藏成员：</p>
+<pre><code class="language-toml">[providers.claude]
+hidden = true
+
+[providers.claude_work]
+type = &quot;claude&quot;
+enabled = true
+hidden = true
+oauth_token = &quot;&lt;from claude setup-token&gt;&quot;
+
+[providers.claude_pool]
+type = &quot;smart&quot;
+strategy = &quot;round_robin&quot;
+providers = [&quot;claude&quot;, &quot;claude_work&quot;]
+enabled = true
+</code></pre>
+<div class="document-table-wrap"><table><thead><tr><th>轮询</th><th>行为</th></tr></thead><tbody><tr><td>新智能体或子智能体</td><td>随机选择一个成员开始运行。</td></tr><tr><td>后续轮次</td><td>继续使用该成员。</td></tr><tr><td>身份验证或配额耗尽错误</td><td>转移到下一个成员。</td></tr><tr><td>开始输出后失败</td><td>不会在另一个账号上重放。</td></tr><tr><td>不支持</td><td>权重、感知用量的路由或优先级路由、时间窗口，以及账号池的界面或 API。</td></tr></tbody></table></div>
+<div class="document-table-wrap"><table><thead><tr><th>设置</th><th>效果</th></tr></thead><tbody><tr><td><code>hidden = true</code></td><td>不出现在模型选择器中；账号池仍可路由到它。</td></tr><tr><td><code>enabled = false</code></td><td>完全停用，包括通过账号池进行的路由。</td></tr><tr><td>删除该表</td><td>移除账号。</td></tr></tbody></table></div>
+<ul>
+<li>已经使用隐藏提供商的会话会继续工作。如果需要它们轮换账号，请按照<a href="#switching-existing-sessions">切换现有会话</a>将其转到账号池；若 <code>defaults.provider</code> 指向隐藏账号，也要更新它。</li>
+<li>未被任何账号池列出的隐藏账号不会被使用。</li>
+<li>账号池只能组合相同类型的账号，Bedrock 账号还必须位于同一区域；其他成员会被静默跳过。</li>
+</ul>
+<h2 id="models">模型<a class="heading-anchor" href="#models" aria-label="链接到模型"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>设置</th><th>位置</th><th>效果</th></tr></thead><tbody><tr><td><code>include_models</code>、<code>exclude_models</code></td><td><code>[providers.&lt;id&gt;]</code></td><td>决定该账号在所有位置提供哪些模型，包括模型选择器。</td></tr><tr><td><code>include_subagent_models</code>、<code>exclude_subagent_models</code></td><td><code>[providers.&lt;id&gt;]</code></td><td>仅缩小新建子智能体时提供的模型范围。</td></tr><tr><td><code>provider</code>、<code>model</code></td><td><code>[defaults]</code></td><td>新会话的默认提供商 ID 和模型 ID。</td></tr></tbody></table></div>
+<ul>
+<li>过滤器使用精确的 Happy Agent 模型 ID，例如 <code>openai/gpt-5.6-sol</code>。排除规则优先。</li>
+<li>账号池遵守成员的过滤规则：如果某模型只有部分成员提供，就只会路由到这些成员。</li>
+<li><code>defaults.provider</code> 可以指定账号池。</li>
+</ul>
+<h2 id="effort">推理强度<a class="heading-anchor" href="#effort" aria-label="链接到推理强度"><span aria-hidden="true">#</span></a></h2>
+<p>在 <code>[defaults]</code> 下设置 <code>effort</code>，例如 <code>effort = &quot;medium&quot;</code>。使用模型允许的级别；<code>GET /v0/config</code> 会按模型列出允许的级别。</p>
+<h2 id="service-tier">服务层级<a class="heading-anchor" href="#service-tier" aria-label="链接到服务层级"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>位置</th><th>设置</th></tr></thead><tbody><tr><td><code>[defaults]</code></td><td><code>service_tier = &quot;default&quot;</code>、<code>&quot;fast&quot;</code> 或 <code>&quot;ultrafast&quot;</code>。</td></tr><tr><td>终端</td><td><code>/fast</code> 切换该会话的快速层级。</td></tr><tr><td>新建子智能体和工作区</td><td>在创建工具上设置 <code>service_tier: &quot;priority&quot;</code>。</td></tr></tbody></table></div>
+<ul>
+<li>只有所选账号和模型支持时，层级才会生效。<code>GET /v0/config</code> 会按提供商列出每个模型支持的层级。</li>
+<li>快速推理会消耗两倍的套餐用量。</li>
+</ul>
+<h2 id="switching-existing-sessions">切换现有会话<a class="heading-anchor" href="#switching-existing-sessions" aria-label="链接到切换现有会话"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>通过 <code>GET /v0/agents/:agentId/mode</code> 读取上次提交的模式。</li>
+<li>通过 <code>PUT /v0/agents/:agentId/draft</code> 提交该模式，仅更改 <code>providerId</code>，并保留用户已有的草稿文本。</li>
+<li>该智能体的下一条消息会在新提供商上运行。</li>
+</ol>
+<p>在同类型账号或账号池上保留相同模型属于兼容切换，会保留对话。不兼容的切换会创建全新的模型上下文，并附上一份交接说明。</p>
+<h2 id="apply-and-verify">应用并验证<a class="heading-anchor" href="#apply-and-verify" aria-label="链接到应用并验证"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>使用 TOML 解析器（例如 Python 3.11 的 <code>tomllib</code>）解析文件，并检查每个账号池成员是否存在。如果失败，修复文件或恢复备份。</li>
+<li>按<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#applying-configuration-changes" target="_blank" rel="noreferrer">应用配置更改</a>中的说明应用更改。</li>
+<li>检查 <code>GET /v0/config</code> 或模型选择器是否显示账号池或新账号、是否不再显示隐藏成员，默认值能否正确解析，以及已切换的会话能否运行一轮。</li>
+</ol></div>

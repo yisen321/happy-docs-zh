@@ -1,0 +1,30 @@
+<div class="document-content"><h1 id="team-sign-in-with-workos">通过 WorkOS 登录团队<a class="heading-anchor" href="#team-sign-in-with-workos" aria-label="链接到 通过 WorkOS 登录团队"><span aria-hidden="true">#</span></a></h1>
+<p>Happy Agent <a href="https://happy.engineering/multiplayer/">团队服务器</a>由 <a href="https://workos.com" target="_blank" rel="noreferrer">WorkOS</a> 提供支持。WorkOS 负责每位成员的登录并维护团队成员关系；服务器只在每次请求时检查签名令牌，绝不会接触密码。更想使用自己的身份提供商？<a href="#bring-your-own-identity-provider">可以改用它</a>。</p>
+<p><img src="https://happy.engineering/img/team-sign-in-workos.svg" alt="团队成员如何登录。Happy Desktop 使用带 PKCE 的 AuthKit 登录 WorkOS，并取得团队的访问令牌。发往团队服务器的每个请求都携带该令牌。团队服务器获取一次 WorkOS 的公开签名密钥并缓存，然后在本地检查每个令牌：RS256 签名、签发者、客户端和 org_id，并将用户映射为团队成员。或者，将 authentication 设置为 jwt 后，服务器改为验证你自己的 OAuth 服务器签发的令牌。" loading="lazy"></p>
+<h2 id="what-workos-does">WorkOS 负责什么<a class="heading-anchor" href="#what-workos-does" aria-label="链接到 WorkOS 负责什么"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>账号与登录：AuthKit。</strong>你的 Happy Social 账号是一个 WorkOS 用户。Desktop 通过浏览器中的 <a href="https://workos.com/docs/authkit" target="_blank" rel="noreferrer">AuthKit</a>，使用公共客户端 PKCE 流程登录，因此应用不内置客户端密钥。轮换刷新的令牌始终留在你的机器上。</li>
+<li><strong>团队：组织。</strong>Happy 团队是一个 WorkOS <a href="https://workos.com/docs/reference/organization" target="_blank" rel="noreferrer">组织</a>，其中注册了服务器地址。创建团队后，你就成为其管理员。</li>
+<li><strong>邀请。</strong>成员通过邮件加入。WorkOS 发送<a href="https://workos.com/docs/authkit/invitations" target="_blank" rel="noreferrer">邀请</a>并处理接受邀请的流程；邀请授予的是普通成员身份。</li>
+<li><strong>每个团队独立的令牌。</strong>对于你连接的每个团队，Desktop 内的 Happy Agent 都会通过 WorkOS 的<a href="https://workos.com/docs/authkit/sessions#switching-organizations" target="_blank" rel="noreferrer">组织切换</a>机制，用刷新令牌换取限定于该组织的访问令牌，并在每次请求时携带它。</li>
+</ul>
+<h2 id="what-the-server-checks">服务器检查什么<a class="heading-anchor" href="#what-the-server-checks" aria-label="链接到 服务器检查什么"><span aria-hidden="true">#</span></a></h2>
+<p>团队服务器要求每个请求（包括健康检查）都携带持有者令牌，不接受其他方式。只有用于告知应用如何登录的 <code>GET /v0/authentication</code> 是公开的。对于每个令牌，服务器都会在本地检查：</p>
+<ul>
+<li>使用 WorkOS 为 Happy 客户端发布的<a href="https://workos.com/docs/reference/authkit/session-tokens/jwks" target="_blank" rel="noreferrer">签名密钥</a>验证 RS256 签名；这些密钥获取一次后会缓存；</li>
+<li>签发者和 <code>client_id</code>，以及 <code>exp</code>、<code>iat</code>、<code>sub</code>、<code>sid</code> 和 <code>org_id</code> 是否存在；</li>
+<li><code>org_id</code> 是否为该团队所属的组织。</li>
+</ul>
+<p>不符合要求的请求一律返回 <code>401</code>。<code>sub</code> 中的 WorkOS 用户在首次保存个人资料时成为团队成员；被指定为所有者的用户会获得所有者权限。除了获取公钥之外，服务器在接受请求时不再调用 WorkOS。</p>
+<pre><code class="language-toml">[feature.team]
+enabled = true
+workos_client_id = &quot;client_01KZD3XE9YAFAMT0P8TD4HP73E&quot;
+workos_organization_id = &quot;org_...&quot;
+owner_workos_user_id = &quot;user_...&quot;
+</code></pre>
+<h2 id="why-workos">为什么选择 WorkOS<a class="heading-anchor" href="#why-workos" aria-label="链接到 为什么选择 WorkOS"><span aria-hidden="true">#</span></a></h2>
+<p>账号、组织、邀请和会话，是团队产品中没人愿意重复构建的部分。交由 WorkOS 处理后，我们无需自行运营密码数据库或邀请邮件服务，而你自行托管的服务器只需检查签名，就能信任团队登录。感谢 WorkOS。</p>
+<h2 id="bring-your-own-identity-provider">使用你自己的身份提供商<a class="heading-anchor" href="#bring-your-own-identity-provider" aria-label="链接到 使用你自己的身份提供商"><span aria-hidden="true">#</span></a></h2>
+<p>设置 <code>authentication = &quot;jwt&quot;</code> 后，成员就会改用组织自己的 OAuth 2.0 服务器登录，例如 Okta、Entra ID、Google Workspace 或 Keycloak。应用直接与该服务器执行带 PKCE 的授权码流程。团队服务器只验证收到的 JWT 访问令牌；绝不会接收登录授权码或刷新令牌。此时登录不再涉及 WorkOS 账号。<a href="https://github.com/slopus/happy-agent/blob/main/docs/recipe/enterprise-jwt-authentication.md" target="_blank" rel="noreferrer">设置企业 JWT 登录</a>介绍了具体步骤。</p>
+<h2 id="how-the-chief-of-staff-sets-up-a-team">参谋长如何建立团队<a class="heading-anchor" href="#how-the-chief-of-staff-sets-up-a-team" aria-label="链接到 参谋长如何建立团队"><span aria-hidden="true">#</span></a></h2>
+<p><a href="https://happy.engineering/chief-of-staff/">参谋长</a>按照公开操作指南<a href="https://github.com/slopus/happy-agent/blob/main/docs/recipe/deploy-happy-team.md" target="_blank" rel="noreferrer">创建并部署 Happy 团队</a>执行：确认账号、名称和端点，创建团队，配置团队模式，验证连接，最后发送邀请。</p></div>

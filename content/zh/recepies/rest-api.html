@@ -1,0 +1,260 @@
+<div class="document-content"><h1 id="drive-happy-agent-over-its-rest-api">通过 REST API 驱动 Happy Agent<a class="heading-anchor" href="#drive-happy-agent-over-its-rest-api" aria-label="链接到通过 REST API 驱动 Happy Agent"><span aria-hidden="true">#</span></a></h1>
+<p>当脚本或只有 shell 可用的智能体需要设置、使用或调试 Happy Agent 时，使用本操作指南：查找智能体并向其发送消息，创建机器人、任务、项目和工作区，发布产物，编辑 Surface，以及诊断故障。这是一份常用调用的操作示例集，每项工作都有一个简短示例。已安装版本附带的 <code>API.md</code>（源码检出目录中的 <code>packages/happy-agent/API.md</code>）是完整的接口契约；每节都会指出应阅读 <code>API.md</code> 的哪个章节，以了解所有其他字段、状态和规则。</p>
+<ol>
+<li><a href="#connect-and-authenticate">连接和身份验证</a></li>
+<li><a href="#remote-and-team-daemons">远程和团队守护进程</a></li>
+<li><a href="#configuration-models-and-instructions">配置、模型和指令</a></li>
+<li><a href="#find-bots-tasks-projects-and-agents">查找机器人、任务、项目和智能体</a></li>
+<li><a href="#skills-and-secrets">技能和密钥</a></li>
+<li><a href="#message-an-agent-and-read-the-reply">向智能体发送消息并读取回复</a></li>
+<li><a href="#steer-stop-answer-and-run-commands">引导、停止、回答问题和运行命令</a></li>
+<li><a href="#bots">机器人</a></li>
+<li><a href="#tasks">任务</a></li>
+<li><a href="#projects-workspaces-and-agents">项目、工作区和智能体</a></li>
+<li><a href="#artifacts">产物</a></li>
+<li><a href="#surfaces-todos-documents-and-calendars">Surface：待办、文档和日历</a></li>
+<li><a href="#what-has-no-rest-route">哪些操作没有 REST 路由</a></li>
+<li><a href="#debugging">调试</a></li>
+<li><a href="#pitfalls">常见陷阱</a></li>
+</ol>
+<p>这些示例在同一个 shell 中逐步衔接：后面的示例会复用前面设置的变量。需要安装 <code>curl</code>、<code>jq</code> 和 <code>openssl</code>。</p>
+<h2 id="connect-and-authenticate">连接和身份验证<a class="heading-anchor" href="#connect-and-authenticate" aria-label="链接到连接和身份验证"><span aria-hidden="true">#</span></a></h2>
+<p>独立守护进程仅通过 Unix 套接字 <code>~/.happy/agent/server.sock</code> 提供 HTTP 服务，除 <code>GET /v0/authentication</code> 外，每个请求都需要 <code>~/.happy/agent/token</code> 中的 Bearer 令牌。设置了 HAPPY_HOME_DIR 时，两者均位于 <code>$HAPPY_HOME_DIR/agent</code> 下。该令牌是守护进程的完整访问凭据：绝不要回显、记录或粘贴它，也不要把它放进命令参数。将它一次性写入私有请求头文件，并通过以下辅助函数使用：</p>
+<pre><code class="language-sh">HAPPY_DIR=&quot;${HAPPY_HOME_DIR:-$HOME/.happy}/agent&quot;
+HAPPY_SOCKET=&quot;$HAPPY_DIR/server.sock&quot;
+HAPPY_AUTH=&quot;$(mktemp)&quot;   # created with mode 0600
+trap &#x27;rm -f &quot;$HAPPY_AUTH&quot;&#x27; EXIT
+printf &#x27;Authorization: Bearer %s\n&#x27; &quot;$(cat &quot;$HAPPY_DIR/token&quot;)&quot; &gt; &quot;$HAPPY_AUTH&quot;
+
+# happy_api PATH [curl options]: an authenticated request; happy_send METHOD PATH JSON [options].
+happy_api() { curl -sS --unix-socket &quot;$HAPPY_SOCKET&quot; -H @&quot;$HAPPY_AUTH&quot; &quot;http://localhost$@&quot;; }
+happy_send() {
+    local method=&quot;$1&quot; path=&quot;$2&quot; body=&quot;$3&quot;; shift 3
+    happy_api &quot;$path&quot; -X &quot;$method&quot; -H &#x27;content-type: application/json&#x27; --data-binary &quot;$body&quot; &quot;$@&quot;
+}
+# A fresh client ID: 24 lowercase letters and digits, valid wherever a request accepts an ID.
+new_id() { printf &#x27;m%s&#x27; &quot;$(openssl rand -hex 12 | cut -c1-23)&quot;; }
+
+happy_api /v0/health | jq &#x27;{ready, version}&#x27;
+</code></pre>
+<p>等待 <code>ready</code> 变为 <code>true</code>；在此之前，只有健康检查会响应。<code>version.protocol</code> 是兼容性版本号；参见 <code>API.md</code> 中的 Versioning（版本管理）。</p>
+<h2 id="remote-and-team-daemons">远程和团队守护进程<a class="heading-anchor" href="#remote-and-team-daemons" aria-label="链接到远程和团队守护进程"><span aria-hidden="true">#</span></a></h2>
+<p>本地守护进程会代理其配置的所有远程连接，无论是独立实例还是团队实例。先列出这些连接，再为本指南中的任意路径加上 <code>/v0/connections/&lt;id&gt;/api</code> 前缀：</p>
+<pre><code class="language-sh">happy_api /v0/connections | jq &#x27;.connections[] | {id, name, authentication}&#x27;
+REMOTE=build-mac
+happy_api &quot;/v0/connections/$REMOTE/api/v0/health&quot; | jq &#x27;{ready, version}&#x27;
+</code></pre>
+<p>本地守护进程会提供远程实例的凭据，包括团队的 WorkOS 令牌，因此脚本始终只持有本地令牌。远程实例返回的 ID 和游标都归属于该实例：只能通过相同前缀使用它们。直接访问团队守护进程时，需要其自身组织的访问令牌，而 <code>POST /v0/cloud/access-token</code> 不会签发该令牌；参见 <code>API.md</code> 中的 Authentication（身份验证）和 Remote connections（远程连接）。远程连接在 <code>happy.toml</code> 中或通过管理员机器人配置，不通过 HTTP 配置。</p>
+<h2 id="configuration-models-and-instructions">配置、模型和指令<a class="heading-anchor" href="#configuration-models-and-instructions" aria-label="链接到配置、模型和指令"><span aria-hidden="true">#</span></a></h2>
+<p><code>GET /v0/config</code> 返回经过脱敏的配置：默认值、模型目录、提供商、MCP 服务器名称和设置。其中绝不会出现凭据。</p>
+<pre><code class="language-sh">happy_api /v0/config | jq &#x27;.config.defaults&#x27;
+# Enabled models per provider, with the efforts each accepts.
+happy_api /v0/config | jq &#x27;.config as $c | $c.providers | to_entries[]
+    | select(.value.enabled) | {provider: .key,
+      models: [.value.models[] | select(.enabled) | {id, efforts: $c.models[.id].efforts}]}&#x27;
+</code></pre>
+<p><code>PATCH /v0/config</code> 更改可在运行时修改的配置子集：提供商的 <code>enabled</code>、节点和 P2P 名称、设置及语音。<code>POST /v0/providers/scan</code> 会重新检测已安装提供商的凭据。全局智能体指令是一份 Markdown 文档：</p>
+<pre><code class="language-sh">happy_api /v0/config/instructions | jq -r .instructions
+happy_send PUT /v0/config/instructions &quot;$(jq -n --arg t &quot;Prefer small commits.&quot; &#x27;{instructions: $t}&#x27;)&quot; |
+    jq &#x27;.instructions | length&#x27;
+</code></pre>
+<p><code>PUT</code> 会替换整份文档，因此请先读取，编辑后再发回。完整数据结构参见 <code>API.md</code> 中的 <code>GET /v0/config</code> 和 <code>PATCH /v0/config</code>。</p>
+<h2 id="find-bots-tasks-projects-and-agents">查找机器人、任务、项目和智能体<a class="heading-anchor" href="#find-bots-tasks-projects-and-agents" aria-label="链接到查找机器人、任务、项目和智能体"><span aria-hidden="true">#</span></a></h2>
+<p>不存在全局智能体列表。每个机器人和任务都将其唯一的智能体嵌入为 <code>agent</code>，每个项目和工作区则在 <code>agents</code> 中列出其活跃的顶层智能体。列表包含已归档条目，因此需要按 <code>status</code> 过滤。</p>
+<pre><code class="language-sh">CHIEF_ID=$(happy_api /v0/bots | jq -r &#x27;.bots[]
+    | select(.systemKey == &quot;chief_of_staff&quot; and .status == &quot;active&quot;) | .agent.id&#x27;)
+happy_api /v0/bots | jq &#x27;.bots[] | select(.status == &quot;active&quot;) | {name, username, agentId: .agent.id}&#x27;
+happy_api /v0/tasks | jq &#x27;.tasks[] | select(.status == &quot;active&quot;) | {id, name, agentId: .agent.id}&#x27;
+happy_api /v0/projects | jq &#x27;.projects[] | select(.status == &quot;active&quot;)
+    | {id, name, path: .compute.path, agents: [.agents[] | {id, title, status}]}&#x27;
+PROJECT_ID=$(happy_api /v0/projects | jq -r &#x27;[.projects[] | select(.status == &quot;active&quot;)][0].id&#x27;)
+happy_api &quot;/v0/workspaces?projectId=$PROJECT_ID&quot; |
+    jq &#x27;.workspaces[] | {id, name, branch: .git.branch, agents: [.agents[].id]}&#x27;
+</code></pre>
+<p><code>GET /v0/bootstrap/desktop</code> 在一次响应中返回配置、项目、根工作区和一级工作区、机器人、任务、Surface 及近期归档的智能体，并提供可用于继续跟踪事件的 <code>cursor</code>。读取单个智能体及其子任务和状态：</p>
+<pre><code class="language-sh">AGENT_ID=$CHIEF_ID
+happy_api &quot;/v0/agents/$AGENT_ID&quot; |
+    jq &#x27;.agent | {title, status, canSendMessages, pendingQuestionId, subtasks: [.subtasks[].id]}&#x27;
+</code></pre>
+<p>机器人和任务的工作区绝不会出现在 <code>/v0/workspaces</code> 中；请通过对应机器人或任务访问。</p>
+<h2 id="skills-and-secrets">技能和密钥<a class="heading-anchor" href="#skills-and-secrets" aria-label="链接到技能和密钥"><span aria-hidden="true">#</span></a></h2>
+<p>全局技能来自 <code>~/.agents/skills</code>。API 可以列出、读取和启用技能；安装技能则意味着写入其文件夹。</p>
+<pre><code class="language-sh">happy_api &#x27;/v0/skills?limit=100&#x27; | jq &#x27;.skills[] | {id, name, enabled, status}&#x27;
+SKILL=$(happy_api &#x27;/v0/skills?limit=100&#x27; | jq -c &#x27;.skills[0]&#x27;)
+happy_send PATCH &quot;/v0/skills/$(jq -r .id &lt;&lt;&lt;&quot;$SKILL&quot;)&quot; &#x27;{&quot;enabled&quot;: false}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$SKILL&quot;)&quot; | jq &#x27;.skill | {name, enabled}&#x27;
+</code></pre>
+<p>密钥是带名称的环境变量集合。值只能写入：任何响应都不会返回这些值，因此应读取安全的元数据，并将密钥附加到项目、工作区或特定智能体。附加只代表密钥具备可用资格；命令仍需明确指定要使用哪些密钥。</p>
+<pre><code class="language-sh">happy_api /v0/secrets | jq &#x27;.secrets[] | {id, description, environmentVariables, availableToAgents}&#x27;
+SECRET_ID=deploy_api
+happy_send PUT &quot;/v0/secrets/$SECRET_ID/attachments/project/$PROJECT_ID&quot; &#x27;{}&#x27; | jq &#x27;{created}&#x27;
+happy_api &quot;/v0/secrets/$SECRET_ID/attachments&quot; | jq &#x27;.attachments[] | .target&#x27;
+happy_send DELETE &quot;/v0/secrets/$SECRET_ID/attachments/project/$PROJECT_ID&quot; &#x27;{}&#x27; | jq &#x27;{detached}&#x27;
+</code></pre>
+<p>创建密钥（<code>POST /v0/secrets</code>）会将值放入请求体；应从文件或变量构建请求体，绝不要在命令或会话记录中直接写入字面值。参见 <code>API.md</code> 中的 Global skills（全局技能）和 Secrets（密钥）。</p>
+<h2 id="message-an-agent-and-read-the-reply">向智能体发送消息并读取回复<a class="heading-anchor" href="#message-an-agent-and-read-the-reply" aria-label="链接到向智能体发送消息并读取回复"><span aria-hidden="true">#</span></a></h2>
+<p>发送消息需要 <code>text</code>、完整的 <code>mode</code> 和你自己生成的 <code>id</code>。复制智能体上次使用的模式；从未接收过消息的智能体会返回 <code>null</code>，此时回退到配置的默认值：</p>
+<pre><code class="language-sh">MODE=$(happy_api &quot;/v0/agents/$AGENT_ID/mode&quot; | jq -c .mode)
+[ &quot;$MODE&quot; = null ] &amp;&amp; MODE=$(happy_api /v0/config | jq -c &#x27;.config.defaults + {serviceTier: null}&#x27;)
+
+MSG_ID=$(new_id)
+happy_send POST &quot;/v0/agents/$AGENT_ID/send&quot; &quot;$(jq -n --arg id &quot;$MSG_ID&quot; --argjson mode &quot;$MODE&quot; \
+    --arg text &quot;Summarize the open work in three bullets.&quot; &#x27;{id: $id, text: $text, mode: $mode}&#x27;)&quot; |
+    jq &#x27;{id: .message.id, status: .message.status, cursor}&#x27;
+</code></pre>
+<p>消息持久化后会返回 <code>202</code>。再次发送相同 <code>id</code> 绝不会重复发送，因此响应丢失时应使用相同 ID 重试。要读取回复，请轮询历史记录，直到包含该消息的运行结束，再打印智能体文本。在实际脚本中，应为循环设置截止时间：</p>
+<pre><code class="language-sh">until RUN=$(happy_api &quot;/v0/agents/$AGENT_ID/messages?omitToolData=true&quot; | jq -e --arg m &quot;$MSG_ID&quot; \
+    &#x27;.runs[] | select(any(.messages[]; .id == $m)) | select(.status != &quot;running&quot;)&#x27;); do
+    sleep 3
+done
+jq &#x27;{status, reason}&#x27; &lt;&lt;&lt;&quot;$RUN&quot;
+jq -r &#x27;.messages[] | select(.role == &quot;agent&quot;) | .content[] | select(.type == &quot;text&quot;) | .text&#x27; &lt;&lt;&lt;&quot;$RUN&quot;
+</code></pre>
+<p>运行的结束状态为 <code>completed</code>、<code>aborted</code> 或 <code>failed</code>。历史记录按运行分组，最新运行排在最后；使用 <code>before=&lt;runId&gt;</code> 向前翻页。排队消息在被某次运行接收前不会出现在历史记录中；智能体的 <code>GET /v0/agents/:agentId/bootstrap</code> 会将其列在 <code>pending</code> 下。</p>
+<p>如果想实时观察，则跟踪事件流。每帧的 <code>event:</code> 表示类型，例如 <code>run.started</code>、<code>message.delta</code>（流式文本）、<code>message.updated</code> 或 <code>run.finished</code>：</p>
+<pre><code class="language-sh">CURSOR=$(happy_api &quot;/v0/agents/$AGENT_ID/bootstrap&quot; | jq -r .cursor)
+happy_api &quot;/v0/events/stream?after=$CURSOR&quot; -N --max-time 30 | grep --line-buffered &#x27;^event:&#x27;
+</code></pre>
+<p><code>--max-time</code> 会结束事件流，因此到时 curl 会报告超时（退出码 28）。<code>GET /v0/events?after=&lt;cursor&gt;</code> 可逐页拉取相同的事件日志。参见 <code>API.md</code> 中的 Messages and runs（消息与运行）、<code>send</code> 和 Events（事件）。</p>
+<h2 id="steer-stop-answer-and-run-commands">引导、停止、回答问题和运行命令<a class="heading-anchor" href="#steer-stop-answer-and-run-commands" aria-label="链接到引导、停止、回答问题和运行命令"><span aria-hidden="true">#</span></a></h2>
+<p><code>delivery: &quot;steer&quot;</code> 会在下一个安全边界将消息优先送入，而不是等待当前运行结束；对于空闲智能体，它与默认的 <code>&quot;queue&quot;</code> 相同：</p>
+<pre><code class="language-sh">happy_send POST &quot;/v0/agents/$AGENT_ID/send&quot; &quot;$(jq -n --arg id &quot;$(new_id)&quot; --argjson mode &quot;$MODE&quot; \
+    &#x27;{id: $id, text: &quot;Stop after the first bullet.&quot;, delivery: &quot;steer&quot;, mode: $mode}&#x27;)&quot; | jq .message.status
+</code></pre>
+<p>停止当前运行、其子智能体以及后台进程。<code>expectedRunId</code> 为可选项；如果此后已启动另一轮运行，它会让中止请求返回 <code>409</code>：</p>
+<pre><code class="language-sh">happy_send POST &quot;/v0/agents/$AGENT_ID/abort&quot; &#x27;{}&#x27; | jq &#x27;.agent.status&#x27;
+</code></pre>
+<p>设置了 <code>pendingQuestionId</code> 时，运行正在等待人工回应。读取问题，并按 ID 使用选项标签或自由文本回答其中的每一项提问：</p>
+<pre><code class="language-sh">Q=$(happy_api &quot;/v0/agents/$AGENT_ID/question&quot; | jq -c .question)
+jq &#x27;{id, context, questions: [.questions[] | {id, question, options: [.options[].label]}]}&#x27; &lt;&lt;&lt;&quot;$Q&quot;
+happy_send POST &quot;/v0/agents/$AGENT_ID/question/$(jq -r .id &lt;&lt;&lt;&quot;$Q&quot;)/answer&quot; \
+    &quot;$(jq -c &#x27;{answers: {(.questions[0].id): [.questions[0].options[0].label]}}&#x27; &lt;&lt;&lt;&quot;$Q&quot;)&quot; |
+    jq .question.status
+</code></pre>
+<p>斜杠命令列在智能体信息中，调用时使用与发送消息相同的 <code>mode</code>。<code>compact</code> 用于总结较早的上下文，只能在智能体空闲时执行：</p>
+<pre><code class="language-sh">happy_api &quot;/v0/agents/$AGENT_ID&quot; | jq &#x27;.slashCommands[] | {name, hasArguments, kind}&#x27;
+happy_send POST &quot;/v0/agents/$AGENT_ID/slash-commands/compact&quot; &quot;$(jq -n --argjson mode &quot;$MODE&quot; &#x27;{mode: $mode}&#x27;)&quot; |
+    jq &#x27;.command.name&#x27;
+</code></pre>
+<p>参见 <code>API.md</code> 中的 Questions（问题）、<code>abort</code>、<code>compact</code> 和 Slash commands（斜杠命令）。</p>
+<h2 id="bots">机器人<a class="heading-anchor" href="#bots" aria-label="链接到机器人"><span aria-hidden="true">#</span></a></h2>
+<p>机器人是一个拥有独立文件夹的长期对话。创建机器人时会同时创建其工作区和智能体；响应返回后即可发送第一条消息。修改机器人需要在 <code>If-Match</code> 中提供机器人的 <code>version</code>。</p>
+<pre><code class="language-sh">BOT=$(happy_send POST /v0/bots &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, name: &quot;Research Assistant&quot;, username: &quot;research_assistant&quot;}&#x27;)&quot; | jq -c .bot)
+BOT_ID=$(jq -r .id &lt;&lt;&lt;&quot;$BOT&quot;); BOT_AGENT_ID=$(jq -r .agent.id &lt;&lt;&lt;&quot;$BOT&quot;)
+BOT_VERSION=$(happy_send PATCH &quot;/v0/bots/$BOT_ID&quot; &#x27;{&quot;name&quot;: &quot;Researcher&quot;}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$BOT&quot;)&quot; | jq -r .bot.version)
+happy_send POST &quot;/v0/bots/$BOT_ID/archive&quot; &#x27;{}&#x27; -H &quot;If-Match: $BOT_VERSION&quot; | jq &#x27;.bot.status&#x27;
+</code></pre>
+<p>按照上文相同方式，通过机器人的 <code>agent.id</code> 向其发送消息。省略 <code>name</code> 会创建 <code>New Bot</code>，它会根据第一条消息自行命名。归档和取消归档都应通过机器人操作，绝不要直接操作其智能体。参见 <code>API.md</code> 中的 Bots（机器人）。</p>
+<h2 id="tasks">任务<a class="heading-anchor" href="#tasks" aria-label="链接到任务"><span aria-hidden="true">#</span></a></h2>
+<p>任务是面向一项工作的类机器人对话，拥有独立文件夹。创建时处于空闲状态；通过首次发送消息，为其指定工作、模型和权限模式：</p>
+<pre><code class="language-sh">TASK=$(happy_send POST /v0/tasks &quot;$(jq -n --arg id &quot;$(new_id)&quot; &#x27;{id: $id, name: &quot;Fix login redirect&quot;}&#x27;)&quot; |
+    jq -c .task)
+TASK_ID=$(jq -r .id &lt;&lt;&lt;&quot;$TASK&quot;); TASK_AGENT_ID=$(jq -r .agent.id &lt;&lt;&lt;&quot;$TASK&quot;)
+TASK_MODE=$(happy_api /v0/config | jq -c &#x27;.config.defaults + {serviceTier: null}&#x27;)
+happy_send POST &quot;/v0/agents/$TASK_AGENT_ID/send&quot; &quot;$(jq -n --arg id &quot;$(new_id)&quot; --argjson mode &quot;$TASK_MODE&quot; \
+    &#x27;{id: $id, text: &quot;Find why login redirects loop and propose a fix.&quot;, mode: $mode}&#x27;)&quot; | jq .message.status
+</code></pre>
+<p>重命名、归档和取消归档都需要在 <code>If-Match</code> 中提供任务的 <code>version</code>。重新排序只会移动任务在你自己列表中的位置，无需该请求头：</p>
+<pre><code class="language-sh">TASK_VERSION=$(happy_send PATCH &quot;/v0/tasks/$TASK_ID&quot; &#x27;{&quot;name&quot;: &quot;Fix the login loop&quot;}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$TASK&quot;)&quot; | jq -r .task.version)
+happy_send POST &quot;/v0/tasks/$TASK_ID/reorder&quot; &#x27;{&quot;afterId&quot;: null}&#x27; | jq &#x27;.membership.orderKey&#x27;
+happy_send POST &quot;/v0/tasks/$TASK_ID/archive&quot; &#x27;{}&#x27; -H &quot;If-Match: $TASK_VERSION&quot; | jq &#x27;.task.status&#x27;
+</code></pre>
+<p><code>GET /v0/tasks?scope=joined</code> 只会按你的排序列出你自己的任务。子任务没有创建路由：智能体通过自身的 <code>create_subtask</code> 工具创建子任务，因此应请机器人或任务进行委派。创建后，子任务会出现在父级的 <code>subtasks</code> 中，并像其他智能体一样接收消息。参见 <code>API.md</code> 中的 Tasks（任务）。</p>
+<h2 id="projects-workspaces-and-agents">项目、工作区和智能体<a class="heading-anchor" href="#projects-workspaces-and-agents" aria-label="链接到项目、工作区和智能体"><span aria-hidden="true">#</span></a></h2>
+<p>注册现有文件夹，或将普通 HTTPS 仓库克隆到托管存储中：</p>
+<pre><code class="language-sh">PROJECT_PATH=&quot;$HOME/Developer/my-app&quot;
+NEW_PROJECT=$(happy_send POST /v0/projects &quot;$(jq -n --arg p &quot;$PROJECT_PATH&quot; &#x27;{path: $p}&#x27;)&quot; | jq -c .project)
+jq &#x27;{id, name, init: .initialization.status}&#x27; &lt;&lt;&lt;&quot;$NEW_PROJECT&quot;
+happy_send POST /v0/projects/clone &#x27;{&quot;name&quot;: &quot;rig&quot;, &quot;source&quot;: {&quot;kind&quot;: &quot;github&quot;, &quot;repository&quot;: &quot;slopus/rig&quot;}}&#x27; |
+    jq &#x27;.project | {id, init: .initialization.status}&#x27;
+</code></pre>
+<p>两者都会在后台初始化：请等待 <code>initialization.status</code> 不再是 <code>&quot;initializing&quot;</code>。工作区是位于父工作区之下、拥有独立分支的 Git worktree；项目 ID 也就是其根工作区 ID。创建一个工作区，在其中启动智能体，然后使用 <code>If-Match</code> 重命名或归档该工作区：</p>
+<pre><code class="language-sh">WS_ID=$(happy_send POST /v0/workspaces &quot;$(jq -n --arg p &quot;$PROJECT_ID&quot; --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, parentId: $p, name: &quot;fix-login&quot;}&#x27;)&quot; | jq -r .workspace.id)
+NEW_AGENT_ID=$(happy_send POST /v0/agents &quot;$(jq -n --arg w &quot;$WS_ID&quot; --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, workspaceId: $w, title: &quot;Fix the login loop&quot;}&#x27;)&quot; | jq -r .agent.id)
+WS_VERSION=$(happy_api &quot;/v0/workspaces/$WS_ID&quot; | jq -r .workspace.version)
+WS_VERSION=$(happy_send PATCH &quot;/v0/workspaces/$WS_ID&quot; &#x27;{&quot;name&quot;: &quot;fix-login-v2&quot;}&#x27; \
+    -H &quot;If-Match: $WS_VERSION&quot; | jq -r .workspace.version)
+happy_send POST &quot;/v0/workspaces/$WS_ID/archive&quot; &#x27;{}&#x27; -H &quot;If-Match: $WS_VERSION&quot; | jq &#x27;.workspace.status&#x27;
+</code></pre>
+<p>工作区会立即返回响应，并在后台构建其检出目录；当 <code>initialization.status</code> 为 <code>&quot;ready&quot;</code> 时，即可向其中的智能体发送消息。归档工作区会停止其中的每个智能体。可通过 <code>POST /v0/agents/:agentId/archive</code> 和 <code>/unarchive</code> 单独归档或恢复智能体。项目通过 <code>POST /v0/projects/:projectId/archive</code> 配合 <code>If-Match</code> 归档；重新注册其路径即可恢复已归档项目。参见 <code>API.md</code> 中的 Projects and workspaces（项目与工作区）、Workspaces（工作区）和 Agents（智能体）。</p>
+<h2 id="artifacts">产物<a class="heading-anchor" href="#artifacts" aria-label="链接到产物"><span aria-hidden="true">#</span></a></h2>
+<p>产物是已发布的文档、页面、图片和文件，每个版本都不可变。智能体通常通过产物工具发布它们；用户和脚本则使用以下路由。</p>
+<pre><code class="language-sh">happy_api &#x27;/v0/artifacts?limit=20&#x27; | jq &#x27;.artifacts[] | {id, type, title, latestVersion}&#x27;
+ART=$(happy_send POST /v0/artifacts &quot;$(jq -n --arg id &quot;$(new_id)&quot; &#x27;{id: $id, type: &quot;markdown&quot;,
+    title: &quot;Status report&quot;, files: [{path: &quot;index.md&quot;, text: &quot;# Status\n\nAll green.\n&quot;}]}&#x27;)&quot; | jq -c .artifact)
+ART_ID=$(jq -r .id &lt;&lt;&lt;&quot;$ART&quot;)
+happy_api &quot;/v0/artifacts/$ART_ID/versions/latest/files/index.md&quot;
+ART_VERSION=$(happy_send PATCH &quot;/v0/artifacts/$ART_ID&quot; \
+    &#x27;{&quot;files&quot;: [{&quot;path&quot;: &quot;index.md&quot;, &quot;text&quot;: &quot;# Status\n\nOne failing test.\n&quot;}]}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$ART&quot;)&quot; | jq -r .artifact.version)
+happy_send POST &quot;/v0/artifacts/$ART_ID/delete&quot; &#x27;{}&#x27; -H &quot;If-Match: $ART_VERSION&quot; | jq .artifact.status
+</code></pre>
+<p>二进制文件应先通过 <code>POST /v0/artifact-uploads</code> 上传（原始字节），然后通过 <code>{ &quot;path&quot;: ..., &quot;uploadId&quot;: ... }</code> 放置。更新以最新版本的文件为起点；<code>remove</code> 和 <code>replaceAll</code> 可以移除文件。类型、限制和来源详见 <code>API.md</code> 中的 Artifacts（产物）。</p>
+<h2 id="surfaces-todos-documents-and-calendars">Surface：待办、文档和日历<a class="heading-anchor" href="#surfaces-todos-documents-and-calendars" aria-label="链接到 Surface：待办、文档和日历"><span aria-hidden="true">#</span></a></h2>
+<p>Surface 是共享列表、文档和日历。其 ID 必须恰好为 24 个字符，以小写字母开头，后接字母或数字，<code>new_id</code> 生成的正是这种格式。</p>
+<pre><code class="language-sh">happy_api /v0/surfaces | jq &#x27;.surfaces[] | {id, type, name}&#x27;
+LIST_ID=$(happy_send POST /v0/surfaces &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, type: &quot;todo&quot;, name: &quot;Release checklist&quot;}&#x27;)&quot; | jq -r .surface.id)
+TODO=$(happy_send POST &quot;/v0/surfaces/todo/$LIST_ID&quot; &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, text: &quot;Tag the release&quot;}&#x27;)&quot; | jq -c .todo)
+happy_send PATCH &quot;/v0/surfaces/todo/$LIST_ID/$(jq -r .id &lt;&lt;&lt;&quot;$TODO&quot;)&quot; &#x27;{&quot;status&quot;: &quot;completed&quot;}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$TODO&quot;)&quot; | jq &#x27;.todo | {text, status}&#x27;
+happy_api &quot;/v0/surfaces/todo/$LIST_ID?scope=all&quot; | jq &#x27;.todos[] | {text, status}&#x27;
+</code></pre>
+<p>对现有待办的每次修改，包括重新排序和 <code>DELETE</code>，都需要在 <code>If-Match</code> 中提供其当前 <code>version</code>。文档以 Markdown 创建，也以 Markdown 读回；实时编辑使用协同更新，因此请让具有文档工具的智能体来修改：</p>
+<pre><code class="language-sh">DOC_ID=$(happy_send POST /v0/surfaces &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, type: &quot;document&quot;, name: &quot;Notes&quot;, text: &quot;# Notes\n\nFirst entry.\n&quot;}&#x27;)&quot; | jq -r .surface.id)
+happy_api &quot;/v0/surfaces/document/$DOC_ID&quot; | jq -r .document.text
+</code></pre>
+<p>日历保存定时或全天事件。读取时需要提供具体时间点范围和查看者的时区；更改事件需要 <code>If-Match</code>：</p>
+<pre><code class="language-sh">CAL_ID=$(happy_send POST /v0/surfaces &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, type: &quot;calendar&quot;, name: &quot;Team&quot;}&#x27;)&quot; | jq -r .surface.id)
+EVENT=$(happy_send POST &quot;/v0/surfaces/calendar/$CAL_ID&quot; &#x27;{&quot;title&quot;: &quot;Release review&quot;,
+    &quot;timing&quot;: {&quot;kind&quot;: &quot;allDay&quot;, &quot;startDate&quot;: &quot;2026-11-02&quot;, &quot;endDate&quot;: &quot;2026-11-03&quot;}}&#x27; | jq -c .event)
+happy_send PATCH &quot;/v0/surfaces/calendar/$CAL_ID/$(jq -r .id &lt;&lt;&lt;&quot;$EVENT&quot;)&quot; &#x27;{&quot;location&quot;: &quot;Room 4&quot;}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$EVENT&quot;)&quot; | jq &#x27;.event | {title, location}&#x27;
+happy_api &quot;/v0/surfaces/calendar/$CAL_ID?from=1793491200000&amp;to=1796083200000&amp;timeZone=UTC&quot; |
+    jq &#x27;.occurrences[] | {eventId, timing}&#x27;
+</code></pre>
+<p>没有删除 Surface 的操作；<code>POST /v0/surfaces/:surfaceId/leave</code> 会将它从你的侧栏中移除。参见 <code>API.md</code> 中的 Surfaces、Document Surfaces（文档 Surface）和 Calendar Surfaces（日历 Surface）。</p>
+<h2 id="what-has-no-rest-route">哪些操作没有 REST 路由<a class="heading-anchor" href="#what-has-no-rest-route" aria-label="链接到哪些操作没有 REST 路由"><span aria-hidden="true">#</span></a></h2>
+<p>智能体能执行的某些操作没有 HTTP 路由。应改为通过消息请智能体执行，通常找参谋长：</p>
+<ul>
+<li>安排定时消息、持久化等待和多智能体工作流；</li>
+<li>创建子任务，以及智能体之间互发消息；</li>
+<li>就地编辑文档 Surface 和产物文件；</li>
+<li>读取 HTML 产物应用的错误报告（<code>read_artifact_logs</code>）。</li>
+</ul>
+<p>MCP 服务器按照随附 <code>MCP.md</code> 的说明在文件中配置；远程连接则在机器级 <code>happy.toml</code> 中配置（参见 <code>API.md</code> 的 Remote connections）。</p>
+<h2 id="debugging">调试<a class="heading-anchor" href="#debugging" aria-label="链接到调试"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>是否已启动，是什么版本？</strong><code>GET /v0/health</code> 返回 <code>ready</code>、<code>version</code>，停止过程中还会返回 <code>draining</code> 和 <code>shuttingDown</code>。处于排空状态的守护进程仍支持读取，但对修改请求返回 <code>503 draining</code>。</li>
+<li><strong>我的令牌是否正确？</strong><code>GET /v0/authentication</code> 不需要令牌，并会说明你发送的令牌是否有效：<code>happy_api /v0/authentication | jq .authenticated</code>。</li>
+<li><strong>智能体正在做什么？</strong><code>GET /v0/agents/:agentId</code> 中的 <code>status</code> 为 <code>idle</code>、<code>thinking</code>、<code>working</code>、<code>generating_tools</code> 或 <code>running_tools</code>。<code>retrying</code> 表示正在自动恢复提供商连接，<code>pendingQuestionId</code> 表示等待人工回应，<code>wait</code> 表示计划性等待。</li>
+<li><strong>为什么某次运行失败？</strong>读取包含工具数据的最新运行。失败的工具调用会显示其 <code>status</code>，而错误 <code>service</code> 消息会携带具有明确类型的 <code>failure</code>：</li>
+</ul>
+<pre><code class="language-sh">happy_api &quot;/v0/agents/$AGENT_ID/messages?limit=10&quot; | jq &#x27;.runs[-1] | {status, reason, messages:
+    [.messages[] | {role, failure: .failure.kind, blocks: [.content[] | {type, name, status}]}]}&#x27;
+</code></pre>
+<ul>
+<li><strong>它启动了什么？</strong><code>GET /v0/agents/:agentId/activity</code> 列出它启动的每个子智能体和后台进程及其状态。</li>
+<li><strong>消耗了多少用量？</strong><code>GET /v0/agents/:agentId/usage</code> 按提供商和模型给出 token 用量及当前上下文大小；<code>GET /v0/usage</code> 提供整个安装实例的统计窗口和提供商账号读数。历史记录中的每次运行也包含 <code>usage</code>、<code>costUsd</code>、<code>startedAt</code> 和 <code>endedAt</code>。</li>
+<li><strong>是否漏掉了事件？</strong>事件流的 <code>hello</code> 帧包含 <code>&quot;gap&quot;: true</code>，或 <code>/v0/events</code> 返回 <code>409 cursor_unavailable</code>，表示游标已超出有界日志的保留范围。重新读取你依赖的快照，然后从守护进程返回的游标继续。</li>
+<li><strong>错误</strong>格式为 <code>{ &quot;error&quot;: &quot;...&quot;, &quot;code&quot;: &quot;...&quot; }</code>。根据 <code>code</code> 分支处理：<code>invalid_request</code>（400）、<code>unauthorized</code>（401）、<code>forbidden</code>（403）、<code>not_found</code>（404）、<code>conflict</code>（409：<code>If-Match</code> 过期或状态不正确）、<code>draining</code> 和 <code>remote_unavailable</code>（503）。<code>If-Match</code> 过期的响应会携带 <code>currentVersion</code> 和当前资源，因此应使用该版本重试。</li>
+</ul>
+<p>完整细节参见 <code>API.md</code> 中的 Errors（错误）、<code>GET /v0/health</code>、Events（事件）和 Typed failures（类型化失败）。</p>
+<h2 id="pitfalls">常见陷阱<a class="heading-anchor" href="#pitfalls" aria-label="链接到常见陷阱"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>必须提供 <code>mode</code>。</strong>从 <code>/mode</code> 或配置默认值中复制；未知或已停用的模型、推理强度或服务层级会返回 <code>400</code>。</li>
+<li><strong>使用相同 <code>id</code> 重试。</strong>发送消息，以及创建机器人、任务、智能体、产物、Surface、待办和事件时，重试都会返回原对象，而不是再创建一个。ID 由小写字母和数字组成，必须以字母开头；UUID 会被拒绝。</li>
+<li><strong>发送时返回 <code>409</code> 表示智能体无法接收消息：</strong>它是隐藏子智能体，或已经归档。</li>
+<li><strong>发送你上次读取的版本。</strong>项目、工作区、机器人、任务、产物、密钥、待办、日历事件和个人资料需要 <code>If-Match</code>；智能体和消息发送不需要。</li>
+<li><strong>事件日志有保留范围限制。</strong>出现缺口后，应重新读取快照，而不是假设什么都没发生。</li>
+<li><strong>根据 <code>code</code> 而非 <code>error</code> 分支处理。</strong><code>error</code> 是展示文本，可能变化。</li>
+<li><strong>应归档，不要删除，</strong>也不要用真实智能体做测试：请遵循<a href="https://happy.engineering/recepies/#testing-a-deployed-node">测试已部署节点</a>。</li>
+</ul></div>

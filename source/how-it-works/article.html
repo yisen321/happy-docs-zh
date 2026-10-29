@@ -1,0 +1,28 @@
+<div class="document-content"><h1 id="how-it-works">How It Works<a class="heading-anchor" href="#how-it-works" aria-label="Link to How It Works"><span aria-hidden="true">#</span></a></h1>
+<p>Happy is a harness. One runtime, Happy Agent, runs the agent loop, the tools, and the sandbox for Claude, Codex, and Grok, and lets agents hand work to each other. It can also run a vendor&#x27;s own agent (beta): Antigravity for Gemini, OpenCode, or any Agent Client Protocol (ACP) agent. Happy Desktop and the phone app are windows onto it.</p>
+<h2 id="the-runtime">The runtime<a class="heading-anchor" href="#the-runtime" aria-label="Link to The runtime"><span aria-hidden="true">#</span></a></h2>
+<p><strong>Happy Agent</strong> is a headless daemon on your machine. Desktop starts it and talks to it over a private local socket. The daemon holds the agent loop, the tools, the sandbox, and a SQLite database of every session. Quit Desktop and sessions keep running; restart the daemon and they resume from disk.</p>
+<p>The daemon authenticates to providers the way Claude Code, Codex, and the Grok CLI do: by reading the credentials those tools keep on the machine. The model catalog is built in. A provider without credentials shows as unavailable, with a reason.</p>
+<h2 id="native-per-model-shared-around-it">Native per model, shared around it<a class="heading-anchor" href="#native-per-model-shared-around-it" aria-label="Link to Native per model, shared around it"><span aria-hidden="true">#</span></a></h2>
+<p>Each provider gets its vendor&#x27;s prompts and tools verbatim, close enough to the native request that prompt caching and native compaction keep working. Everything around inference is shared:</p>
+<ul>
+<li>One permission model. Claude&#x27;s <code>Bash</code>, Codex&#x27;s <code>exec_command</code>, and Grok&#x27;s <code>run_terminal_command</code> run the same sandboxed shell.</li>
+<li>One transcript. Switch models and the conversation keeps its history.</li>
+<li>One set of Happy tools: subagents, waits, scheduling, messaging other agents, MCP.</li>
+</ul>
+<h2 id="durable">Durable<a class="heading-anchor" href="#durable" aria-label="Link to Durable"><span aria-hidden="true">#</span></a></h2>
+<p>Every change is written to the database before it is applied in memory. Subagents are sessions too. Waits and scheduled messages survive a restart.</p>
+<h2 id="clients">Clients<a class="heading-anchor" href="#clients" aria-label="Link to Clients"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>Client</th><th>What it is</th></tr></thead><tbody><tr><td><strong>Happy Desktop</strong></td><td>Projects, workspaces, sessions, changed files, terminals, the Inbox (experimental), settings</td></tr><tr><td><strong>Happy mobile</strong></td><td>iOS and Android, attached to the same sessions through an encrypted relay</td></tr></tbody></table></div>
+<p>A message from any client enters the same session, queue, and permission boundary. There is no remote mode.</p>
+<h2 id="what-leaves-the-machine">What leaves the machine<a class="heading-anchor" href="#what-leaves-the-machine" aria-label="Link to What leaves the machine"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Model requests, to the provider you chose, with your credentials.</li>
+<li>Session sync to your phone, through Happy&#x27;s relay, as ciphertext. Your devices hold the keys.</li>
+<li>Product analytics from the app to PostHog, tied to a random install ID: which features you use, the model, the OS, and the app version. PostHog also sees the IP address of each request. Never your messages, code, or files. Turn it off in Settings → General → Privacy.</li>
+<li>No hosted account for the app, and no copy of your project.</li>
+</ul>
+<h2 id="is-happy-a-phone-remote-for-claude-code">Is Happy a phone remote for Claude Code?<a class="heading-anchor" href="#is-happy-a-phone-remote-for-claude-code" aria-label="Link to Is Happy a phone remote for Claude Code?"><span aria-hidden="true">#</span></a></h2>
+<p>That describes the <a href="https://happy.engineering/docs/">original Happy CLI</a>, which wraps Claude Code in your terminal so you can steer it from your phone. Happy today is the harness on this page, running Claude, Codex, Grok, Gemini, and more in one app; the phone app is one of its clients.</p>
+<h2 id="not-yet">Not yet<a class="heading-anchor" href="#not-yet" aria-label="Link to Not yet"><span aria-hidden="true">#</span></a></h2>
+<p>Forking a running provider session. The &quot;add a remote machine by name&quot; experience; the Tailcat transport exists, see <a href="https://happy.engineering/guides/remote-server/">the remote server guide</a>.</p></div>

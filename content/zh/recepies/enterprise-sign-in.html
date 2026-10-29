@@ -1,0 +1,158 @@
+<div class="document-content"><h1 id="set-up-enterprise-jwt-sign-in">设置企业 JWT 登录<a class="heading-anchor" href="#set-up-enterprise-jwt-sign-in" aria-label="链接到 设置企业 JWT 登录"><span aria-hidden="true">#</span></a></h1>
+<p>当组织希望成员使用组织自己的身份提供商（Okta、Entra ID、Google Workspace、Keycloak、内部 SSO 等），而不是 Happy 的 WorkOS 账号，登录团队模式 Happy Agent 时，使用本操作指南。最终得到的是一个验证组织签发的 JWT 访问令牌的团队模式守护进程，以及一个由组织拥有、供 Happy 桌面或移动应用直接登录的 OAuth 授权服务器。</p>
+<p>请先阅读<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">团队部署模式</a>；其中关于安装、Tailcat、首次设置和验证的所有说明仍然适用。本指南只替换其中的 WorkOS 认证方式。它不授权修改组织的身份提供商、在其中注册应用，或将服务发布到互联网；请向用户所在组织的管理员申请相应权限。</p>
+<p>此功能要求 Happy Agent 发布版包含企业 JWT 认证。客户端通过 <code>GET /v0/authentication</code> 检测支持情况；旧版守护进程会返回 <code>404</code>。</p>
+<h2 id="how-sign-in-works">登录如何工作<a class="heading-anchor" href="#how-sign-in-works" aria-label="链接到 登录如何工作"><span aria-hidden="true">#</span></a></h2>
+<p>这与 Slack 及其他桌面应用使用企业 SSO 的方式相同：应用通过系统浏览器将用户带到组织的登录页面，取得短时有效的一次性授权码，再自行用该授权码换取令牌。</p>
+<p>守护进程被视为<strong>不可信任其接触凭据</strong>。它告诉应用在哪里登录，并验证应用发送来的访问令牌，但绝不会看到登录授权码、PKCE 秘密或刷新令牌。</p>
+<pre><code class="language-text">Happy app                 Happy Agent daemon           Authorization server (deployer)
+   |  GET /v0/authentication  |                                  |
+   |-------------------------&gt;|                                  |
+   |  oauth: authorizationUrl, tokenUrl, refreshUrl, clientId    |
+   |&lt;-------------------------|                                  |
+   |  system browser: authorizationUrl?client_id&amp;redirect_uri&amp;state&amp;code_challenge
+   |------------------------------------------------------------&gt;|  SSO login with the
+   |                          |                                  |  identity provider
+   |  browser redirects to redirect_uri?code=...&amp;state=...       |
+   |&lt;------------------------------------------------------------|
+   |  POST tokenUrl  code + code_verifier                        |
+   |------------------------------------------------------------&gt;|
+   |  access_token (JWT), expires_in, refresh_token?             |
+   |&lt;------------------------------------------------------------|
+   |  Authorization: Bearer &lt;access_token&gt;                       |
+   |-------------------------&gt;|  verify signature, iss, aud, exp; read user ID
+   |          ... later, when the access token expires ...       |
+   |  POST refreshUrl  refresh_token                             |
+   |------------------------------------------------------------&gt;|
+   |  new access_token (and maybe a new refresh_token)           |
+   |&lt;------------------------------------------------------------|
+</code></pre>
+<ol>
+<li>Happy 应用询问守护进程如何登录。守护进程返回的任何 <code>401</code> 都携带相同的回答，因此应用可以从任意被拒绝的请求发起登录。</li>
+<li>守护进程返回一种 <code>oauth</code> 方式：直接取自配置的授权端点、令牌端点、可选刷新端点、客户端 ID，以及可选的权限范围。</li>
+<li>应用创建随机的 <code>state</code> 和 PKCE 校验值，将二者保存在内存中，并在<strong>系统浏览器</strong>中打开授权端点，绝不使用内嵌 Web 视图。应用会显示授权服务器的主机名，让用户看清自己正在何处登录。</li>
+<li>授权服务器通过身份提供商完成用户登录，然后重定向到应用的 <code>redirect_uri</code>，并携带<strong>一次性授权码</strong>和 <code>state</code>。桌面端的重定向 URI 是类似 <code>http://127.0.0.1:53682/callback</code> 的回环地址；移动端则是应用自己的 URL 协议。</li>
+<li>应用检查 <code>state</code>，然后在令牌端点提交授权码及 PKCE 校验值，换取令牌。即使有人截获重定向，也只会得到一个没有校验值就毫无用处、且数秒内就会失效的授权码。</li>
+<li>应用在每次请求时将访问令牌发送给守护进程。它可以只将所有令牌保存在内存中。</li>
+<li>访问令牌到期前或到期时，如果配置了刷新端点，应用会向该端点发送刷新令牌，取得新的访问令牌。没有刷新端点或刷新失败时，应用会再次通过浏览器登录。只要身份提供商自身的会话仍然有效，这个过程通常会立即完成，所以应用即使只在内存中保存凭据，也很少需要提示用户操作。</li>
+</ol>
+<p>应用只会把刷新令牌发送到登录时记录的刷新端点，绝不会发送到守护进程后来公布的其他端点。客户端代码使用 <code>@slopus/happy-agent-client</code> 中的 <code>beginOAuthSignIn</code>、<code>completeOAuthSignIn</code> 和 <code>refreshOAuthCredential</code>；<code>HappyAgentClient</code> 接受令牌函数，因此刷新后的令牌无需重新创建客户端即可生效。</p>
+<h2 id="1-choose-the-authorization-server">1. 选择授权服务器<a class="heading-anchor" href="#1-choose-the-authorization-server" aria-label="链接到 1. 选择授权服务器"><span aria-hidden="true">#</span></a></h2>
+<p>部署方需要一个支持公共客户端<strong>带 PKCE 的授权码流程</strong>，并签发 <strong>JWT 访问令牌</strong>的 OAuth 2.0 授权服务器。有两种方式：</p>
+<ul>
+<li><strong>直接使用身份提供商。</strong>Okta、Entra ID、Auth0、Keycloak、Ping 及大多数现代身份提供商都开箱即用地支持此功能。注册一个原生或公共应用，允许 Happy 应用的重定向 URI，为这次部署定义 API 或资源，使访问令牌包含其受众；如有需要，启用刷新令牌。无需编写自定义代码。</li>
+<li><strong>编写一个小型授权服务器</strong>，放在无法签发合适访问令牌的身份提供商之前，例如仅支持 SAML 的提供商。参见第 3 步。</li>
+</ul>
+<h2 id="2-agree-the-token-contract">2. 明确令牌契约<a class="heading-anchor" href="#2-agree-the-token-contract" aria-label="链接到 2. 明确令牌契约"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>签发者</strong>（<code>iss</code>）：授权服务器的签发者，例如 <code>https://sso.acme.example</code>。</li>
+<li><strong>受众</strong>（<code>aud</code>）：<strong>本次</strong>部署独有的值，例如 <code>https://happy.acme.example</code>。守护进程能看到发送给它的每个令牌；使用唯一受众可以阻止它将成员令牌重放给其他服务或另一套 Happy 部署。</li>
+<li><strong>用户 ID 声明</strong>：稳定且永不重复使用的用户 ID。默认为 <code>sub</code>。优先使用不可变的对象 ID，而非邮箱地址。值应为 1–256 个可打印字符。</li>
+<li><strong>所有者</strong>：应成为此部署所有者的用户 ID。</li>
+<li><strong>客户端 ID</strong> 及可选<strong>权限范围</strong>：使用授权服务器为 Happy 应用注册的值。如果刷新令牌需要，请请求 <code>offline_access</code> 或提供商对应的权限范围。</li>
+<li><strong>有效期</strong>：访问令牌应短时有效，通常为 5–60 分钟；如果组织希望保持较长会话，则配合刷新令牌使用。服务器支持时，应在每次使用后轮换刷新令牌。</li>
+<li><strong>签名密钥</strong>：优先选择通过 JWKS URL 发布的非对称密钥，所有身份提供商都支持这种方式。支持的算法：<code>RS256</code>、<code>RS384</code>、<code>RS512</code>、<code>PS256</code>、<code>PS384</code>、<code>PS512</code>、<code>ES256</code>、<code>ES384</code>、<code>ES512</code>、<code>EdDSA</code>。也支持共享秘密（<code>HS256</code>、<code>HS384</code>、<code>HS512</code>，至少 32 字节），但任何持有它的人都能签发令牌，包括守护进程自身。当守护进程并非完全可信时，绝不要使用共享秘密，也绝不要在不同部署间共用一个秘密。</li>
+</ul>
+<p>每个访问令牌都必须携带 <code>iss</code>、<code>aud</code>、<code>exp</code> 和用户 ID 声明。若有 <code>nbf</code> 和 <code>iat</code>，也会检查。时钟最多允许相差 30 秒。</p>
+<h2 id="3-if-you-write-the-authorization-server-yourself">3. 如果自行编写授权服务器<a class="heading-anchor" href="#3-if-you-write-the-authorization-server-yourself" aria-label="链接到 3. 如果自行编写授权服务器"><span aria-hidden="true">#</span></a></h2>
+<p>按照 RFC 6749、RFC 7636 和 RFC 8252 实现三个端点。任何 OAuth 服务器库都可以做到；关键要求如下：</p>
+<p><strong><code>GET /oauth/authorize</code></strong> 接收 <code>response_type=code</code>、<code>client_id</code>、<code>redirect_uri</code>、<code>state</code>、<code>code_challenge</code>、<code>code_challenge_method=S256</code>，以及可选的 <code>scope</code>。</p>
+<ol>
+<li>检查 <code>client_id</code>，并<strong>将 <code>redirect_uri</code> 与 Happy 应用回调的允许列表精确比对</strong>，例如 <code>happy://auth/callback</code> 和 <code>http://127.0.0.1:&lt;any port&gt;/callback</code>。绝不重定向到其他位置，即使是为了报告错误也不行。</li>
+<li>通过身份提供商完成用户登录，并检查该用户是否被允许使用 Happy。</li>
+<li>创建一个随机、一次性、约一分钟内过期的授权码，并将它与用户、<code>client_id</code>、<code>redirect_uri</code> 和 <code>code_challenge</code> 一起存储。</li>
+<li>重定向到 <code>redirect_uri?code=&lt;code&gt;&amp;state=&lt;state&gt;</code>，原样复制 <code>state</code>。</li>
+</ol>
+<p><strong><code>POST /oauth/token</code></strong> 接收表单，包含 <code>grant_type=authorization_code</code>、<code>code</code>、<code>redirect_uri</code>、<code>client_id</code> 和 <code>code_verifier</code>。消费该授权码，检查 <code>client_id</code> 与 <code>redirect_uri</code> 是否匹配，并检查 <code>code_verifier</code> 的 SHA-256 值经过 base64url 编码后是否等于已存储的挑战值。返回 JSON：</p>
+<pre><code class="language-json">{
+    &quot;access_token&quot;: &quot;&lt;JWT&gt;&quot;,
+    &quot;token_type&quot;: &quot;Bearer&quot;,
+    &quot;expires_in&quot;: 900,
+    &quot;refresh_token&quot;: &quot;&lt;opaque random string&gt;&quot;
+}
+</code></pre>
+<p>错误使用 <code>400</code>，并返回 <code>{ &quot;error&quot;: &quot;invalid_grant&quot; }</code> 或其他 OAuth 错误码。</p>
+<p><strong><code>POST /oauth/refresh</code></strong>（可选；也可以使用令牌端点）接收 <code>grant_type=refresh_token</code>、<code>refresh_token</code> 和 <code>client_id</code>，响应方式相同。刷新令牌应哈希后存储，每次使用时轮换，人员离开时撤销；若已轮换的令牌被重复使用，应视为被盗，并撤销整个会话。刷新端点可以与另两个端点位于不同源。</p>
+<p>使用 <code>jose</code> 签发访问令牌：</p>
+<pre><code class="language-ts">import { importPKCS8, SignJWT } from &quot;jose&quot;;
+
+const privateKey = await importPKCS8(process.env.HAPPY_SIGNING_KEY!, &quot;ES256&quot;);
+
+export async function accessToken(userId: string): Promise&lt;string&gt; {
+    return await new SignJWT({})
+        .setProtectedHeader({ alg: &quot;ES256&quot;, kid: &quot;happy-2026-09&quot; })
+        .setIssuer(&quot;https://sso.acme.example&quot;)
+        .setAudience(&quot;https://happy.acme.example&quot;)
+        .setSubject(userId)
+        .setIssuedAt()
+        .setExpirationTime(&quot;15m&quot;)
+        .sign(privateKey);
+}
+</code></pre>
+<p>在稳定的 <code>https</code> URL 上以 JWKS 形式发布公钥，在密钥和令牌头中都包含 <code>kid</code>，轮换时先发布新密钥，再用它签名。在旧密钥签发的所有令牌都过期前，将它保留在 JWKS 中，之后再移除；守护进程会在下次下载时停止接受该密钥。所有端点都必须通过 <code>https</code> 提供服务；明文 <code>http</code> 仅在用于本地测试的回环主机上被允许。</p>
+<h2 id="4-configure-the-daemon">4. 配置守护进程<a class="heading-anchor" href="#4-configure-the-daemon" aria-label="链接到 4. 配置守护进程"><span aria-hidden="true">#</span></a></h2>
+<p>按照<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">团队部署模式</a>安装二进制文件并初始化 Tailcat，但不要使用 WorkOS 设置，而是按以下方式编写机器级 <code>happy.toml</code>：</p>
+<pre><code class="language-toml">[feature.team]
+enabled = true
+host = &quot;0.0.0.0&quot;
+port = 3000
+authentication = &quot;jwt&quot;
+owner_user_id = &quot;REPLACE_WITH_OWNER_USER_ID&quot;
+
+[feature.team.jwt]
+name = &quot;Acme SSO&quot;
+authorization_url = &quot;https://sso.acme.example/oauth/authorize&quot;
+token_url = &quot;https://sso.acme.example/oauth/token&quot;
+refresh_url = &quot;https://sso.acme.example/oauth/refresh&quot;
+client_id = &quot;happy&quot;
+scope = &quot;happy offline_access&quot;
+issuer = &quot;https://sso.acme.example&quot;
+audience = &quot;https://happy.acme.example&quot;
+user_id_claim = &quot;sub&quot;
+algorithms = [&quot;ES256&quot;]
+jwks_url = &quot;https://sso.acme.example/.well-known/jwks.json&quot;
+jwks_refresh_interval_sec = 3600
+</code></pre>
+<p><code>name</code> 是 Happy 应用在登录按钮上显示的名称。省略 <code>refresh_url</code> 可关闭刷新；如果服务器不需要权限范围，则省略 <code>scope</code>。必须且只能配置一种密钥来源：</p>
+<ul>
+<li><code>jwks_url = &quot;https://...&quot;</code>：使用已发布的密钥集（推荐）。守护进程在启动时自行下载密钥，随后每隔 <code>jwks_refresh_interval_sec</code> 秒再次下载（范围 60–86,400，默认 3,600），因此无需将密钥写入配置。如果令牌使用守护进程尚未见过的密钥签名，会立即触发下载，最多每 30 秒一次，因此轮换可立即生效。下载失败时，守护进程保留最近一次有效的密钥，并在一分钟后重试；从 JWKS 移除的密钥会在下次成功下载后失效；</li>
+<li><code>public_key = &quot;&quot;&quot;-----BEGIN PUBLIC KEY-----...&quot;&quot;&quot;</code>：使用单个 PEM 公钥；</li>
+<li><code>secret_env = &quot;HAPPY_TEAM_JWT_SECRET&quot;</code>：使用共享秘密，将其保存在守护进程服务的该环境变量中，绝不写入 <code>happy.toml</code>。</li>
+</ul>
+<p>使用 JWT 认证时，不要设置 <code>workos_organization_id</code>、<code>owner_workos_user_id</code> 或 <code>workos_client_id</code>；守护进程会拒绝这种组合。配置错误会使启动停止，并给出可读的提示，因此守护进程未能启动时应查看服务日志。</p>
+<p>用户通过认证方式与用户 ID 的组合来标识。从 WorkOS 切换到 JWT 的部署会以全新的成员账号开始；原有 WorkOS 用户仍保存在系统中，但无法通过 JWT 登录。</p>
+<h2 id="5-verify">5. 验证<a class="heading-anchor" href="#5-verify" aria-label="链接到 5. 验证"><span aria-hidden="true">#</span></a></h2>
+<p>在能够访问守护进程的机器上运行以下检查，将 <code>DAEMON</code> 替换为其地址。</p>
+<ol>
+<li>
+<p>不携带令牌时，发现接口也应响应：</p>
+<pre><code class="language-sh">curl -s &quot;DAEMON/v0/authentication&quot;
+</code></pre>
+<p>预期返回 <code>&quot;authenticated&quot;: false</code> 和一个包含已配置端点及客户端 ID 的 <code>oauth</code> 方法，不包含任何秘密、密钥或 JWKS 内容。</p>
+</li>
+<li>
+<p>通过 Happy 应用登录，或手动测试流程：使用回环 <code>redirect_uri</code>、<code>state</code> 和 PKCE 挑战值打开授权 URL，确认浏览器跳转到 <code>redirect_uri?code=...&amp;state=...</code>，然后在令牌端点兑换授权码。</p>
+</li>
+<li>
+<p>携带访问令牌调用发现接口，预期返回 <code>&quot;authenticated&quot;: true</code>。用户保存个人资料前，<code>userId</code> 始终为 <code>null</code>。</p>
+</li>
+<li>
+<p>确认遭篡改、已过期或受众错误的令牌会得到 <code>401</code>，且响应中的 <code>authentication</code> 字段列出相同方法，并确认面向其他受众的令牌会被拒绝。</p>
+</li>
+<li>
+<p>如果配置了刷新，执行一次刷新，确认新的访问令牌有效，并在启用轮换时确认旧刷新令牌已被拒绝。</p>
+</li>
+<li>
+<p>在 Happy 应用中以所有者身份登录，完成首次设置，并运行<a href="https://happy.engineering/recepies/#testing-a-deployed-node">已部署节点测试</a>。然后以第二位成员身份登录，确认该成员不是所有者。</p>
+</li>
+</ol>
+<h2 id="troubleshooting">故障排查<a class="heading-anchor" href="#troubleshooting" aria-label="链接到 故障排查"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>浏览器显示错误而没有重定向。</strong>重定向 URI 未在授权服务器中注册，或客户端 ID 错误。</li>
+<li><strong>兑换授权码失败，返回 <code>invalid_grant</code>。</strong>授权码已过期或已被使用，重定向 URI 与授权时使用的不一致，或服务器没有使用 S256 验证 PKCE。</li>
+<li><strong>启动后所有访问令牌立即被拒绝。</strong>守护进程无法下载 JWKS：检查它能否通过 <code>https</code> 直接访问 <code>jwks_url</code> 而不经过重定向，并查看服务日志中的密钥集警告。</li>
+<li><strong>所有访问令牌都被拒绝。</strong>将 <code>iss</code>、<code>aud</code>、<code>alg</code> 和 <code>kid</code> 与配置精确比对，并检查服务器时钟。有些身份提供商只有在请求 API 或资源受众时才签发 JWT，否则会签发不透明访问令牌；守护进程需要 JWT。</li>
+<li><strong>始终没有发生刷新。</strong>未配置 <code>refresh_url</code>，令牌响应中没有 <code>refresh_token</code>，或者权限范围缺少 <code>offline_access</code> 或对应项。</li>
+<li><strong>有人意外成为所有者。</strong>只有 <code>owner_user_id</code> 与令牌中的用户 ID 声明匹配时，才会赋予所有者身份。</li>
+</ul>
+<p>绝不要将真实令牌、授权码、私钥或共享秘密粘贴到对话、问题单或日志中。</p></div>

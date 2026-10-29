@@ -1,0 +1,24 @@
+<div class="document-content"><h1 id="happy-vs-claude-code-remote-control">Happy 与 Claude Code Remote Control 对比<a class="heading-anchor" href="#happy-vs-claude-code-remote-control" aria-label="链接到 Happy 与 Claude Code Remote Control 对比"><span aria-hidden="true">#</span></a></h1>
+<p>Claude Code Remote Control 是针对单个 Claude Code 会话的远程控制功能：这是 Anthropic 内置的方式，让你通过 Claude 应用或浏览器继续该会话。Happy 则是用于编排编程智能体的开源运行框架：在一个桌面应用中使用 Claude、Codex、Grok、Gemini 等智能体，复用你已有的订阅，并通过端到端加密的手机应用访问每个会话。如果只想继续一个 Claude 会话，不想额外安装软件，Remote Control 更简单。</p>
+<h2 id="side-by-side">并排对比<a class="heading-anchor" href="#side-by-side" aria-label="链接到并排对比"><span aria-hidden="true">#</span></a></h2>
+<p>Remote Control 的信息来自 <a href="https://code.claude.com/docs/en/remote-control" target="_blank" rel="noreferrer">Anthropic 的 Remote Control 文档</a>，核对日期为 2026 年 10 月 9 日。它经常变化；最新状态请以该文档为准。</p>
+<div class="document-table-wrap"><table><thead><tr><th></th><th>Happy</th><th>Claude Code Remote Control</th></tr></thead><tbody><tr><td>开发方</td><td>Happy Engineering，开源（MIT）</td><td>Anthropic，属于 Claude Code 的一部分</td></tr><tr><td>智能体</td><td>Happy Desktop 中的 Claude、Codex、Grok、Gemini 和 ACP 智能体</td><td>Claude Code</td></tr><tr><td>智能体运行位置</td><td>你的电脑</td><td>你的电脑</td></tr><tr><td>手机和网页</td><td>iOS 和 Android 版 Happy</td><td>iOS 和 Android 版 Claude 应用，以及任意浏览器中的 claude.ai/code</td></tr><tr><td>套餐</td><td>你已有的 Claude Code、Codex 或 Grok 登录账号。Happy Desktop 还可通过 Amazon Bedrock 运行 Claude 和 GPT</td><td>Claude Pro、Max、Team 或 Enterprise。不支持 API 密钥、Amazon Bedrock、Google Cloud、Microsoft Foundry 或自定义 <code>ANTHROPIC_BASE_URL</code></td></tr><tr><td>中间服务器能看到什么</td><td>密文。密钥由你的设备持有</td><td>会话记录；连接期间通过 TLS 传输并存储在 Anthropic 服务器上</td></tr><tr><td>从手机新建会话</td><td>支持，可以选择目录</td><td>支持，需要运行 <code>claude remote-control</code>（服务器模式）</td></tr><tr><td>电脑端进程停止后</td><td>会话归属于后台运行时 Happy Agent，因此退出应用不会停止会话，重启后可从磁盘恢复</td><td>会话会离线，直到你重新启动。服务器会话大约可在四小时内恢复</td></tr><tr><td>组织管理控制</td><td>没有移动访问的管理员设置</td><td>由 Team 和 Enterprise 所有者启用。Trusted Devices（测试版）增加了设备注册和生物识别检查</td></tr><tr><td>价格</td><td>免费</td><td>包含在 Claude 套餐内</td></tr></tbody></table></div>
+<h2 id="where-remote-control-is-better">Remote Control 的优势<a class="heading-anchor" href="#where-remote-control-is-better" aria-label="链接到 Remote Control 的优势"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>无需安装。</strong>如果你使用 Claude Code 和 Claude 应用，只需运行 <code>claude remote-control</code>，或在会话中运行 <code>/remote-control</code>，然后扫描二维码。</li>
+<li><strong>官方提供。</strong>它可在 Claude Code CLI、Claude Desktop 应用和 VS Code 扩展中使用，并由 Anthropic 提供支持。</li>
+<li><strong>任意电脑上的浏览器。</strong>所有会话都能在 claude.ai/code 打开。</li>
+<li><strong>管理员控制。</strong>Team 和 Enterprise 所有者决定是否启用。Trusted Devices 将访问权限与已注册设备及近期登录关联。</li>
+<li><strong>深度集成 Claude Code。</strong>已连接的设备可以查看子智能体进度、上下文压缩和差异面板，还可以运行 <code>/compact</code>、<code>/model</code> 等命令。</li>
+</ul>
+<h2 id="where-happy-is-different">Happy 的不同之处<a class="heading-anchor" href="#where-happy-is-different" aria-label="链接到 Happy 的不同之处"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>不止 Claude。</strong>Happy Desktop 可并排运行 Claude、Codex、Grok、Gemini 等智能体，并可在对话过程中切换模型。所有会话都能通过同一个手机应用访问。</li>
+<li><strong>端到端加密。</strong>内容在一台设备上加密，在另一台设备上解密。Happy 中继存储和转发无法解读的数据块；它能知道会话存在，但看不到内容。参见<a href="https://happy.engineering/docs/security/">安全与加密</a>。</li>
+<li><strong>Bedrock。</strong>Happy Desktop 可通过 Amazon Bedrock 运行 Claude 和 GPT 模型，而 Remote Control 不支持这一场景。</li>
+<li><strong>会话寿命不受窗口限制。</strong>在 Happy Desktop 中，会话存在于运行时而非应用中，重启后仍能保留。</li>
+<li><strong>开源。</strong>手机应用、Happy Desktop 和 Happy Agent 均采用 MIT 许可证。你可以阅读代码、创建分支副本并发布自己的构建版本。</li>
+</ul>
+<h2 id="which-one">如何选择<a class="heading-anchor" href="#which-one" aria-label="链接到如何选择"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>你的需求</th><th>使用</th></tr></thead><tbody><tr><td>通过手机使用 Claude Code，并尽可能减少设置</td><td>Remote Control</td></tr><tr><td>通过同一个手机应用使用 Claude Code 和 Codex</td><td>Happy</td></tr><tr><td>让中间服务器无法读取会话内容</td><td>Happy</td></tr><tr><td>在一个桌面应用中使用 Claude、Codex、Grok、Gemini 等智能体，同时支持手机访问</td><td><a href="https://happy.engineering/desktop-app/">Happy Desktop</a></td></tr><tr><td>由公司管理访问权限，并进行设备检查</td><td>Remote Control</td></tr></tbody></table></div>
+<p>开始使用 Happy，请参见<a href="https://happy.engineering/mobile-app/">在手机上使用 Claude Code</a>或<a href="https://happy.engineering/quick-start/">快速开始</a>。</p></div>

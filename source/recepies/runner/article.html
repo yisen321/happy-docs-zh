@@ -1,0 +1,143 @@
+<div class="document-content"><h1 id="add-a-dedicated-runner">Add a dedicated runner<a class="heading-anchor" href="#add-a-dedicated-runner" aria-label="Link to Add a dedicated runner"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe to give a deployed Happy Agent node — standalone or team — a separate machine that
+does its work. <strong>It is strongly recommended for every remote node.</strong> The node keeps the database,
+provider credentials, API token, and inference; the runner holds the project folders and runs
+everything that touches them: agent file tools and commands, Git, workspace checkouts, setup
+commands, terminals, file browsing, previews, and MCP stdio servers. An agent command that goes
+wrong, or a dependency that runs hostile code, then lands on a machine with none of the node&#x27;s
+secrets.</p>
+<p>Read <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#runners" target="_blank" rel="noreferrer">Runners in the configuration guide</a> for the settings, and the
+installed release&#x27;s <code>API.md</code> (in the source checkout <code>packages/happy-agent/API.md</code>) for exact
+requests. The walkthrough targets a fresh Linux runner host with systemd. Execute it end to end,
+as the <a href="https://happy.engineering/recepies/">recipe rules</a> describe; ask only for the choices below that are still missing.</p>
+<h2 id="1-resolve-the-choices">1. Resolve the choices<a class="heading-anchor" href="#1-resolve-the-choices" aria-label="Link to 1. Resolve the choices"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Which node gets the runner, and which machine and SSH account host it? Confirm the runner host&#x27;s
+key, operating system, architecture, and permission to install a persistent service there.
+The runner host must not be the node&#x27;s own machine; that would defeat the separation.</li>
+<li>A short runner ID (<code>[a-z][a-z0-9_-]{0,63}</code>, for example <code>build-box</code>) and a friendly name.</li>
+<li>Which runtimes and package managers the user&#x27;s projects need on the runner. Git is always
+required. Docker is needed only for container workspaces (step 7).</li>
+<li>The Git name and email commits on the runner should use — the same identity the node&#x27;s own
+Git used, unless the user wants another.</li>
+</ul>
+<p>A runner holds no provider credentials, no Happy data, and no API token. Do not copy any of them
+to it. Repository tokens stay on the node too: Git on the runner reaches remotes through the
+runner connection, and the node adds the token itself.</p>
+<h2 id="2-generate-the-runner-s-token-and-add-it-to-the-node">2. Generate the runner&#x27;s token and add it to the node<a class="heading-anchor" href="#2-generate-the-runner-s-token-and-add-it-to-the-node" aria-label="Link to 2. Generate the runner&#x27;s token and add it to the node"><span aria-hidden="true">#</span></a></h2>
+<p>Generate a fresh token privately on the node — 32 random bytes as 43 base64url characters — and
+never print it, put it in a command argument, or reuse another token:</p>
+<pre><code class="language-sh">umask 077
+head -c 32 /dev/urandom | base64 | tr &#x27;+/&#x27; &#x27;-_&#x27; | tr -d &#x27;=\n&#x27; &gt; ~/.runner-token-build-box
+</code></pre>
+<p>Merge the runner into the node&#x27;s machine <code>happy.toml</code>, writing the token from that file with a
+TOML serializer rather than pasting it, and preserving every unrelated setting:</p>
+<pre><code class="language-toml">[runners]
+default = &quot;build-box&quot;
+
+[runners.build-box]
+name = &quot;Build box&quot;
+token = &quot;REPLACE_WITH_THE_GENERATED_TOKEN&quot;
+</code></pre>
+<p><code>default</code> is optional with exactly one runner; with several it names the runner used for new
+projects that name none, for the home project, and for bot folders. Each token must differ from
+<code>[api] token</code>, every connection token, and every other runner&#x27;s token.</p>
+<p><strong>Once any runner is configured, the node runs nothing on its own machine.</strong> Projects registered
+on the node&#x27;s own disk stay listed so they can be archived, but their agents, terminals, and files
+refuse to work there. Tell the user before restarting, and plan to register or clone those
+projects again on the runner (step 6). Apply the change by draining and restarting the node as in
+its deployment recipe; keep the node&#x27;s Tailcat identity and data.</p>
+<h2 id="3-prepare-the-runner-host">3. Prepare the runner host<a class="heading-anchor" href="#3-prepare-the-runner-host" aria-label="Link to 3. Prepare the runner host"><span aria-hidden="true">#</span></a></h2>
+<p>Install the <strong>same Happy Agent release as the node</strong>, with the same download and checksum steps
+as <a href="https://happy.engineering/recepies/remote-agent/#2-install-the-binary-and-prepare-one-service-account">Deploy a standalone remote agent</a>.
+Use a dedicated unprivileged account that owns the runner&#x27;s folders:</p>
+<pre><code class="language-sh">sudo apt-get update
+sudo apt-get install -y ca-certificates curl git
+sudo useradd --system --create-home --home-dir /var/lib/happy-runner \
+  --shell /bin/bash happy-runner
+sudo chmod 0700 /var/lib/happy-runner
+sudo install -d -m 0700 -o happy-runner -g happy-runner /var/lib/happy-runner/.happy-runner
+</code></pre>
+<p>Agent commands run in the sandbox on the runner, so on Ubuntu 24.04 follow the
+<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/permissions-and-sandbox.md#ubuntu-apparmor-host-prerequisite" target="_blank" rel="noreferrer">Ubuntu AppArmor host prerequisite</a>
+for the runner&#x27;s executable, exactly as for a node. Install the projects&#x27; runtimes for the
+<code>happy-runner</code> user, and set its Git identity:</p>
+<pre><code class="language-sh">sudo -u happy-runner -H git config --global user.name &quot;CONFIRMED_NAME&quot;
+sudo -u happy-runner -H git config --global user.email &quot;CONFIRMED_EMAIL&quot;
+</code></pre>
+<h2 id="4-give-the-runner-its-token-and-the-node-s-address">4. Give the runner its token and the node&#x27;s address<a class="heading-anchor" href="#4-give-the-runner-its-token-and-the-node-s-address" aria-label="Link to 4. Give the runner its token and the node&#x27;s address"><span aria-hidden="true">#</span></a></h2>
+<p>Transfer the token to the runner host over the approved private path, straight into the token
+file, and delete the node&#x27;s temporary copy afterwards:</p>
+<pre><code class="language-sh">sudo install -m 0600 -o happy-runner -g happy-runner /dev/stdin \
+  /var/lib/happy-runner/.happy-runner/token &lt; runner-token-from-the-node
+</code></pre>
+<p>The runner dials the node; it needs no inbound port. Read the node&#x27;s Tailcat address and port from
+its private <code>.happy/agent/tailcat/address</code> and <code>tailcat/port</code> files — the same values a primary
+installation&#x27;s connection uses — and write the endpoint into a private environment file. Both
+standalone and team nodes are reached this way; a node that is already reachable over a private
+network may use <code>https://host</code> or <code>http://host:port</code> instead.</p>
+<pre><code class="language-sh">printf &#x27;HAPPY_RUNNER_ENDPOINT=tailcat:%s:%s\n&#x27; &quot;$NODE_TAILCAT_ADDRESS&quot; &quot;$NODE_TAILCAT_PORT&quot; |
+  sudo install -m 0600 -o happy-runner -g happy-runner /dev/stdin \
+    /var/lib/happy-runner/.happy-runner/endpoint.env
+</code></pre>
+<p>The runner reads the token from that file and removes both variables from its own environment,
+so nothing it starts inherits them, and agent commands cannot read its private directory.</p>
+<h2 id="5-install-the-runner-service">5. Install the runner service<a class="heading-anchor" href="#5-install-the-runner-service" aria-label="Link to 5. Install the runner service"><span aria-hidden="true">#</span></a></h2>
+<p>Install <code>/etc/systemd/system/happy-runner.service</code>:</p>
+<pre><code class="language-ini">[Unit]
+Description=Happy Agent runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=happy-runner
+Group=happy-runner
+WorkingDirectory=/var/lib/happy-runner
+Environment=HOME=/var/lib/happy-runner
+EnvironmentFile=/var/lib/happy-runner/.happy-runner/endpoint.env
+ExecStart=/usr/local/bin/happy-agent runner
+Restart=always
+RestartSec=5
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<p>The token and endpoint stay out of the world-readable unit. Folders live under the runner&#x27;s home
+unless <code>--home &lt;directory&gt;</code> names another absolute directory. Start it and wait, with a bounded
+deadline, for the connection:</p>
+<pre><code class="language-sh">sudo systemctl daemon-reload
+sudo systemctl enable --now happy-runner
+sudo journalctl -u happy-runner -n 50 --no-pager
+</code></pre>
+<p>The log says <code>Connected to the daemon.</code> A refused token, a node without runners configured, or an
+unreachable endpoint is logged in plain words; the runner keeps retrying, so fix the cause rather
+than restarting in a loop.</p>
+<h2 id="6-verify-from-the-node">6. Verify from the node<a class="heading-anchor" href="#6-verify-from-the-node" aria-label="Link to 6. Verify from the node"><span aria-hidden="true">#</span></a></h2>
+<p>Through the connection the user will use:</p>
+<ol>
+<li><code>GET /v0/runners</code> lists the runner as <code>connected</code>, with its version, platform, and home. The
+home project and bot folders now report a <code>runner</code> compute.</li>
+<li>Follow <a href="https://happy.engineering/recepies/#testing-a-deployed-node">Testing a deployed node</a> with a temporary project
+registered or cloned <strong>on the runner</strong> — pass its <code>runnerId</code>, or rely on the default. Confirm
+the project&#x27;s compute is <code>{ &quot;type&quot;: &quot;runner&quot; }</code>, that the agent&#x27;s shell reports the runner&#x27;s
+hostname, that a terminal opens in the folder, and that the file tree lists it. Archive the
+project afterwards.</li>
+<li>Re-register or clone the user&#x27;s real projects on the runner when they ask. A clone through the
+node&#x27;s repository credentials proves Git access without any token on the runner.</li>
+</ol>
+<p>Stopping the runner makes its folders&#x27; work fail with <code>runner_unavailable</code> until it reconnects;
+nothing falls back to the node.</p>
+<h2 id="7-optional-container-workspaces">7. Optional: container workspaces<a class="heading-anchor" href="#7-optional-container-workspaces" aria-label="Link to 7. Optional: container workspaces"><span aria-hidden="true">#</span></a></h2>
+<p>To run a project&#x27;s workspaces in containers on the runner, install Docker there and let
+<code>happy-runner</code> use it. Membership in the <code>docker</code> group is root-equivalent on that host; say so and
+get approval first. Then set the project&#x27;s <code>defaultWorkspaceCompute</code> to
+<code>{ &quot;type&quot;: &quot;docker&quot;, &quot;image&quot;: &quot;...&quot; }</code>. Each new workspace&#x27;s agent tools run in a container of that
+image with the folder mounted at the same path; Git, terminals, and previews use the runner&#x27;s copy.</p>
+<h2 id="more-runners-rotation-and-removal">More runners, rotation, and removal<a class="heading-anchor" href="#more-runners-rotation-and-removal" aria-label="Link to More runners, rotation, and removal"><span aria-hidden="true">#</span></a></h2>
+<p>Add more runners with their own IDs and tokens and choose one per project with <code>runnerId</code>. Upgrade
+runners with the node, keeping one release across both. To rotate a token, write a new one to both
+the node&#x27;s <code>happy.toml</code> and the runner&#x27;s token file, then restart both. To remove a runner, delete
+its entry and restart the node: the node refuses its token and tells it to stop everything it held.
+Then disable <code>happy-runner</code> on that host.</p></div>

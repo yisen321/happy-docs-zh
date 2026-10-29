@@ -1,0 +1,42 @@
+<div class="document-content"><h1 id="vision">愿景<a class="heading-anchor" href="#vision" aria-label="链接到愿景"><span aria-hidden="true">#</span></a></h1>
+<p>每个人都会需要一种与 AI 交流的方式。我们认为，这是当今最重要、最值得解决的问题之一，我们希望把它做好。</p>
+<ul>
+<li><strong>让人们开心。</strong> <img src="https://happy.engineering/thesis/pig.png" alt="一只小小的、非常开心的猪" class="essay-pig" width="120" height="117" loading="lazy"> 我们想做出一款让人喜欢的产品：精心打磨的用户体验、开源、支持任意模型、不被绑定。只要大家用得开心，其他事情就会水到渠成。</li>
+<li><strong>一个主要 Agent。</strong>你会运行很多 Agent，但只有一个负责与你沟通。</li>
+<li><strong>聊天不再只是聊天。</strong>你上次向上翻阅聊天记录是什么时候？侧栏（你的任务跟踪器）和聊天区（你专注工作的地方）都非常适合变成动态生成的内容。</li>
+<li><strong>少些摆弄，多些理解。</strong>界面上的繁琐操作正在消失。如今的瓶颈是你的理解能力。</li>
+<li><strong>手机优先。</strong>要读的内容少了，要摆弄的东西少了，一部手机就够了。</li>
+<li><strong>一个统一运行框架。</strong>支持任意提供商的任意模型，还能做到一堆独立 CLI 做不到的事。</li>
+<li><strong>权限应属于 Agent。</strong>如今，谁能与 Agent 交谈，谁就拥有它的权限。权限本应属于 Agent 自己。</li>
+</ul>
+<h2 id="make-people-happy">让人们开心<a class="heading-anchor" href="#make-people-happy" aria-label="链接到让人们开心"><span aria-hidden="true">#</span></a></h2>
+<p>我们想做出一款让人喜欢的产品。精心打磨的用户体验，开源，支持任意提供商的任意模型，有更好的模型发布就能切换。你可以自行托管，也可以交给我们。</p>
+<p>我们怎么赚钱？目前还没把重心放在这件事上。现在唯一收费的是语音：通过 ElevenLabs，每 30 天提供 20 分钟免费额度，之后可在移动应用中订阅付费档，每 30 天最多使用 5 小时。未来可能会通过你托管 Happy Agent 所用的 VPS 提供商推荐码获利，也可能提供自有托管和额外功能。眼下的问题是，大家是否会真正感到兴奋，并成为铁杆用户。我们瞄准的是漏斗最上游：成为你工作时主要交流的 Agent，未来再延伸到生活中的其他方面。</p>
+<p>Meta 联系了我们，希望开展内部试点，因为其工程师一直要求在工作中使用 Happy。我们希望有足够多的人认同这些判断，愿意试试 Happy。</p>
+<h2 id="one-primary-agent">一个主要 Agent<a class="heading-anchor" href="#one-primary-agent" aria-label="链接到一个主要 Agent"><span aria-hidden="true">#</span></a></h2>
+<p><strong>你会运行很多 Agent，但只有一个应该负责与你沟通。</strong></p>
+<figure class="essay-figure essay-figure-left"><img src="https://happy.engineering/thesis/sidebar.png" alt="我们当前侧栏的一部分" width="220" height="306" loading="lazy"><figcaption>我们当前侧栏的一部分</figcaption></figure>
+<p>十个会话就是十个消息来源，而大多数消息并不需要你处理。由一个 Agent 统一接收，它知道你这周关心什么，只在必要时打断你。低成本模型让它能以几乎可以忽略的成本，全天检查“有什么新进展吗？”，而且它运行在云端，即使设备离线也会继续工作。</p>
+<p>如果你总是开启超出自己处理能力的工作，这个 Agent 就是你的 Scrum Master：什么正在推进、什么受阻、什么需要你出面，它都清楚。</p>
+<h2 id="chat-left-the-chat">聊天不再只是聊天<a class="heading-anchor" href="#chat-left-the-chat" aria-label="链接到聊天不再只是聊天"><span aria-hidden="true">#</span></a></h2>
+<figure class="essay-figure"><img src="https://happy.engineering/thesis/layout.svg" alt="侧栏顶部是你的 Agent，下方是一棵任务树；当前专注的任务呈现为一个持续更新的页面" width="720" height="400" loading="lazy"></figure>
+<p><strong>没人会重读旧消息。</strong>所以聊天区不必是一份只增不减的日志。<strong>侧栏和聊天区都非常适合变成动态生成的内容。</strong>Agent 会维护这种聊天式内容的实时版本，让上下文切换变得顺畅：只需一屏，就能了解最新进展。在 ChatGPT 的 Intelligent UI 中，已经能<a href="https://openai.com/index/gpt-6-for-everyone/" target="_blank" rel="noreferrer">看到一些端倪</a>。</p>
+<p>会话本质上是任务。它们会派生出更多会话，跨越多个仓库，形成一棵树；于是侧栏就成了一张地图，展示 Agent 正在做什么、已经产出了什么。是不是有点让你想到 Arc？</p>
+<p>Agent 维护这张地图，并隐藏当下无关的内容。我们都喜欢同时开启五个副业项目，结果被上下文切换折腾得筋疲力尽。别来回切换。等它们做出值得你信任的成果，再回来看看。</p>
+<h2 id="fiddle-less-understand-more">少些摆弄，多些理解<a class="heading-anchor" href="#fiddle-less-understand-more" aria-label="链接到少些摆弄，多些理解"><span aria-hidden="true">#</span></a></h2>
+<figure class="essay-figure essay-figure-center"><img src="https://happy.engineering/thesis/buttons.svg" alt="应用中的静态按钮随时间减少并趋近于零，图中标出了我们今天所处的位置" width="520" height="320" loading="lazy"><figcaption>应用中的静态按钮正趋近于零</figcaption></figure>
+<p>配置、起名字、归档会话、搜索代码：你上次手动修改应用设置是什么时候？接下来要消失的，就是这些繁琐工作。</p>
+<p>说出你想要什么，或者在 Agent 展示的内容上做标记：圈出一个数字、划掉一段文字、点击某个东西。这些都会交给 Agent，而不是触发某个固定动作。我们的<a href="https://happy.engineering/chief-of-staff/">参谋长</a>已经这样工作：告诉它配对手机，它就会完成设置。只有那些无法收回的行为，比如分享密钥或以你的身份给别人发消息，仍需由你亲自批准权限。</p>
+<p>你的大脑并没有变得更聪明，但 Agent 正在变强。所以解释工作应该由它们来做：简单的可视化、小演示、变更概览，而不是差异对比。使用我们自己的组件，在我们设计好的区域内呈现生成式 UI。</p>
+<h2 id="phone-first">手机优先<a class="heading-anchor" href="#phone-first" aria-label="链接到手机优先"><span aria-hidden="true">#</span></a></h2>
+<p>在手机上审批已经很常见。接下来，是直接用手机工作。Happy 起初是手机上的 Claude Code；如今，<a href="https://happy.engineering/mobile/">移动应用</a>可以加入与桌面端相同的会话，而我们仍坚持手机优先设计。</p>
+<h2 id="one-harness">一个统一运行框架<a class="heading-anchor" href="#one-harness" aria-label="链接到一个统一运行框架"><span aria-hidden="true">#</span></a></h2>
+<figure class="essay-figure essay-figure-right"><img src="https://happy.engineering/thesis/model-picker.png" alt="Happy 的模型选择器，在同一列表中展示 Codex、Claude 和 Grok 模型" width="270" height="263" loading="lazy"><figcaption>在同一个选择器中选择 Codex、Claude 和 Grok</figcaption></figure>
+<p>我们的选择是，让所有 Agent 底层都使用同一个运行框架——<a href="https://happy.engineering/how-it-works/">Happy Agent</a>。每个提供商都原样使用其厂商自己的提示词和工具。除此之外的一切共享：一套权限模型，一组工具。</p>
+<p>正因如此，你可以在同一应用中<a href="https://happy.engineering/models/">运行 Claude、GPT 和 Grok</a>，并为每个子 Agent 分配最适合的模型：用 Grok 研究 X，用 Anthropic 模型处理新颖问题，用 GPT Astra 操作计算机。</p>
+<p>这也让我们能实现一堆独立 CLI 做不到的事：统一监管所有终端会话的管理层、能自行更新的运行框架、分布在团队服务器各个 Runner 上的 Agent，以及未来更细粒度的权限。</p>
+<h2 id="permissions-belong-to-the-agent">权限应属于 Agent<a class="heading-anchor" href="#permissions-belong-to-the-agent" aria-label="链接到权限应属于 Agent"><span aria-hidden="true">#</span></a></h2>
+<p>Agent 做任何事都需要权限。如果允许某个人与你的 Agent 交谈，对方就拥有了它的权限。如果允许 Agent 互相发消息，它们也需要相应权限。自动审查者应不应该批准 Agent 提出的更多访问权限申请？多人在同一服务器工作时，提交算谁的？</p>
+<p>如今，彼此信任的团队可以运行一台<a href="https://happy.engineering/multiplayer/">共享服务器</a>，每位成员拥有自己的身份，所有人受同一套<a href="https://happy.engineering/permissions/">沙箱与审查机制</a>约束。但无论是谁在与 Agent 交谈，Agent 仍使用服务器的权限运行。这只是起点，还不是答案。</p>
+<p>我们见过的唯一一次认真尝试是 <a href="https://openclaw.ai/blog/openclaw-enterprise" target="_blank" rel="noreferrer">OpenClaw Enterprise</a>：每个 Agent 都有自己的身份，Agent 和凭据位于带有角色控制的独立命名空间中。值得尊重。权限应属于 Agent，而不是与它交谈的人。</p>
+<p class="essay-signoff"><img src="https://happy.engineering/thesis/pig.png" alt="一只小小的、非常开心的猪" class="essay-pig essay-pig-signoff" width="120" height="117" loading="lazy"></p></div>

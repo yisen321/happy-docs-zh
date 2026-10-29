@@ -1,0 +1,109 @@
+<div class="document-content"><h1 id="harden-a-node-with-separate-linux-users">使用独立 Linux 用户加固节点<a class="heading-anchor" href="#harden-a-node-with-separate-linux-users" aria-label="链接到使用独立 Linux 用户加固节点"><span aria-hidden="true">#</span></a></h1>
+<p>本操作指南将运行 Happy Agent 的一台 Linux 机器划分为两类账号。<strong>服务用户</strong>（此处为 <code>happy-agent</code>）运行守护进程，只有它能读取配置、数据库、提供商凭据和 API 令牌。<strong>工作负载用户</strong>（此处为 <code>happy-work</code>）运行智能体执行的一切操作：文件工具和命令、Git、工作区检出与初始化、终端、文件浏览、预览以及 MCP stdio 服务器。这样，即使智能体命令出错，或依赖执行了恶意代码，也是在无法读取任何值得窃取的信息的账号下运行。在此基础上，还可以让特定机器人以专属用户运行，例如供其他人对话的机器人。</p>
+<p>守护进程通过 sudo，为每个工作负载用户启动一个小型运行器，命令为 <code>sudo -n -u &lt;user&gt; -- /usr/local/bin/happy-agent runner --stdio</code>，并通过其标准输入输出通信，使用的协议与<a href="https://happy.engineering/recepies/runner/">专用运行器</a>相同。智能体命令仍在其中的常规沙箱内运行。配置完成后，守护进程绝不会自行执行智能体工作：缺少 sudo 规则、用户不存在或运行器无法启动，都会使相应工作失败并给出原因，不会回退到服务用户执行。</p>
+<p>在独立机器上使用<a href="https://happy.engineering/recepies/runner/">专用运行器</a>仍能提供更强的隔离，也是远程节点的推荐方式。本指南适用于自行执行工作的节点，也适用于加固任何以服务方式运行 Happy Agent 的机器。这两种方式不能在同一节点上组合使用：一旦配置了运行器，节点所在机器上就不会执行任何工作，因此守护进程不允许同时存在 <code>[execution]</code> 和 <code>[runners]</code>。加固运行器主机时，应像相应指南那样，让 <code>happy-runner</code> 只能访问自己的文件夹。</p>
+<p>设置详见<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#work-as-separate-linux-users" target="_blank" rel="noreferrer">以独立 Linux 用户执行工作</a>。本流程面向使用 systemd 和 sudo 的 Linux 主机，在<a href="https://happy.engineering/recepies/remote-agent/">部署独立远程智能体</a>或<a href="https://happy.engineering/recepies/team/">团队部署</a>的基础上执行。按照<a href="https://happy.engineering/recepies/">操作指南规则</a>从头到尾完成；只询问下列尚未明确的选择。</p>
+<h2 id="1-resolve-the-choices">1. 明确各项选择<a class="heading-anchor" href="#1-resolve-the-choices" aria-label="链接到 1. 明确各项选择"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>使用哪个节点，以及是否为全新安装。应在<strong>守护进程首次启动之前</strong>应用此配置。主目录项目、参谋长的文件夹以及所有机器人、任务、项目和工作区文件夹都会放在工作负载用户的主目录下。对于已有节点，已经创建在服务用户主目录下的文件夹仍留在原处，工作负载用户无法访问，其中的智能体会因 <code>Permission denied</code> 失败；需要告知用户，并计划在工作负载用户主目录下重新注册其项目。</li>
+<li>工作负载用户的名称。此处默认为 <code>happy-work</code>。名称以小写字母或 <code>_</code> 开头，后接最多 31 个小写字母、数字、<code>_</code> 或 <code>-</code>；不允许使用 <code>root</code> 或服务用户自身。</li>
+<li>是否有机器人需要以专属用户运行，以及具体是哪些。使用 <code>list_bots</code> 查找每个机器人的 ID；机器人 ID 不是其智能体 ID。机器人必须先创建，才能在此处指定，因此只能在机器人存在后为其配置专属用户。</li>
+<li>项目需要哪些运行时、包管理器和 Git 身份。这些应归工作负载用户，而非服务用户。</li>
+</ul>
+<h2 id="2-prepare-the-service-user">2. 准备服务用户<a class="heading-anchor" href="#2-prepare-the-service-user" aria-label="链接到 2. 准备服务用户"><span aria-hidden="true">#</span></a></h2>
+<p>按照部署指南的服务账号步骤操作：<code>happy-agent</code> 的主目录为 <code>/var/lib/happy-agent</code>，权限为 <code>0700</code>，它拥有 <code>happy/config</code>、<code>.happy</code> 和凭据文件夹，这些目录的权限均为 <code>0700</code>，<code>happy.toml</code> 和凭据文件的权限为 <code>0600</code>。将发行版二进制文件安装到 <code>/usr/local/bin/happy-agent</code>，由 root 所有、权限为 <code>0755</code>，其所在目录也由 root 所有。工作负载用户也要运行同一个文件，因此它不能放在服务用户的主目录中：主目录权限变为 <code>0700</code> 后，位于 <code>~/.happy/dist</code> 下的二进制文件就无法访问。检查这两项：</p>
+<pre><code class="language-sh">sudo stat -c &#x27;%U %a %n&#x27; /var/lib/happy-agent /var/lib/happy-agent/.happy \
+  /var/lib/happy-agent/happy/config /var/lib/happy-agent/happy/config/happy.toml
+ls -l /usr/local/bin/happy-agent
+</code></pre>
+<p>每个目录的结果应为 <code>happy-agent 700</code>，<code>happy.toml</code> 应为 <code>happy-agent 600</code>，二进制文件应由 <code>root</code> 所有。</p>
+<h2 id="3-create-the-workload-user">3. 创建工作负载用户<a class="heading-anchor" href="#3-create-the-workload-user" aria-label="链接到 3. 创建工作负载用户"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-sh">sudo useradd --system --create-home --home-dir /home/happy-work \
+  --shell /bin/bash happy-work
+sudo chmod 0700 /home/happy-work
+id happy-work
+</code></pre>
+<p><code>id</code> 的输出不得包含 <code>sudo</code>、<code>adm</code>、<code>docker</code>、<code>lxd</code> 或 <code>happy-agent</code> 组：其中任一组都会让智能体命令有机会重新接触本次隔离的内容。为 <code>happy-work</code> 安装项目所需运行时，并设置已商定的 Git 身份：</p>
+<pre><code class="language-sh">sudo -u happy-work -H git config --global user.name &quot;CONFIRMED_NAME&quot;
+sudo -u happy-work -H git config --global user.email &quot;CONFIRMED_EMAIL&quot;
+</code></pre>
+<p>工作负载用户的运行器中的 Git 使用该用户配置的 Git 身份验证，与专用运行器完全相同。只有用户希望智能体使用 <code>gh</code> 或其他命令行登录时，才为 <code>happy-work</code> 安装并登录；并且只能使用用户同意让节点上所有智能体均拥有其访问范围的账号。</p>
+<p>文件夹布局位于工作负载用户主目录下，与运行器自身的布局方式相同：</p>
+<div class="document-table-wrap"><table><thead><tr><th>文件夹</th><th>存放内容</th><th>所有者</th></tr></thead><tbody><tr><td><code>/home/happy-work</code></td><td>主目录项目</td><td><code>happy-work</code></td></tr><tr><td><code>/home/happy-work/Happy/Projects</code></td><td>Happy Agent 克隆的项目</td><td><code>happy-work</code></td></tr><tr><td><code>/home/happy-work/happy/workspaces</code></td><td>托管工作区</td><td><code>happy-work</code></td></tr><tr><td><code>/home/happy-work/happy/Bots/&lt;name&gt;</code></td><td>每个机器人的文件夹</td><td><code>happy-work</code></td></tr><tr><td><code>/home/happy-work/happy/Tasks/&lt;name&gt;</code></td><td>每个任务的文件夹</td><td><code>happy-work</code></td></tr><tr><td><code>/var/lib/happy-agent</code></td><td>配置、数据库、凭据</td><td><code>happy-agent</code></td></tr></tbody></table></div>
+<p><code>HAPPY_AGENT_WORKSPACES_DIRECTORY</code> 和 <code>HAPPY_AGENT_PROJECTS_DIRECTORY</code> 描述的是服务用户自身的目录布局，不会移动上述目录。只有现有仓库位于 <code>happy-work</code> 拥有的位置（例如 <code>/home/happy-work/src/&lt;name&gt;</code>）后，才将其注册到节点。</p>
+<h2 id="4-allow-exactly-one-command-through-sudo">4. 通过 sudo 只允许一条命令<a class="heading-anchor" href="#4-allow-exactly-one-command-through-sudo" aria-label="链接到 4. 通过 sudo 只允许一条命令"><span aria-hidden="true">#</span></a></h2>
+<p>服务用户只需要以工作负载用户身份启动运行器，不需要其他权限。将规则写入私有临时文件，检查后再安装：</p>
+<pre><code class="language-sh">umask 077
+cat &gt; /tmp/happy-agent.sudoers &lt;&lt;&#x27;EOF&#x27;
+# Happy Agent starts a runner as each workload user. Nothing else is allowed.
+happy-agent ALL=(happy-work) NOPASSWD: /usr/local/bin/happy-agent runner --stdio
+EOF
+sudo visudo -cf /tmp/happy-agent.sudoers
+sudo install -m 0440 -o root -g root /tmp/happy-agent.sudoers /etc/sudoers.d/happy-agent
+rm /tmp/happy-agent.sudoers
+sudo visudo -c
+</code></pre>
+<p>若机器人有专属用户，应在同一条规则中列出每个目标用户，例如 <code>(happy-work,happy-guest)</code>。参数必须精确保持为 <code>runner --stdio</code>：显式列出参数后，sudo 会拒绝带任何其他参数运行该程序，而守护进程也不需要其他参数。不要在运行身份列表中添加用户组，不要使用 <code>ALL</code>，不要通过 <code>env_keep</code> 保留环境变量，也不要关闭 <code>env_reset</code>；守护进程只传递 <code>PATH</code>，因此其环境中的提供商密钥绝不会传给工作负载用户。绝不要为工作负载用户配置自己的 sudo 规则。</p>
+<p>如果 <code>visudo -cf</code> 报错，应立即停止；<code>/etc/sudoers.d</code> 中损坏的文件可能让 sudo 完全无法使用。</p>
+<h2 id="5-configure-the-daemon-and-its-service">5. 配置守护进程及其服务<a class="heading-anchor" href="#5-configure-the-daemon-and-its-service" aria-label="链接到 5. 配置守护进程及其服务"><span aria-hidden="true">#</span></a></h2>
+<p>将工作负载用户配置合并到服务用户的机器级 <code>happy.toml</code> 中，保留所有无关设置：</p>
+<pre><code class="language-toml">[execution]
+user = &quot;happy-work&quot;
+</code></pre>
+<p><code>executable</code> 默认为守护进程自身的可执行文件；只有它与 sudo 规则指定的路径不同时才设置，例如通过符号链接启动守护进程时，可设置 <code>executable = &quot;/usr/local/bin/happy-agent&quot;</code>。使用机器人 ID 为机器人指定专属用户：</p>
+<pre><code class="language-toml">[execution.bots.k3x9q2w7e5r1t8y4u6i0o3pa]
+user = &quot;happy-guest&quot;
+</code></pre>
+<p>项目的 <code>happy.toml</code> 不能设置这两项；只有机器级文件可以。</p>
+<p>保持部署指南中的 systemd 单元不变，即 <code>User=happy-agent</code>、<code>UMask=0077</code> 和 <code>ExecStart=/usr/local/bin/happy-agent run</code>。运行器在服务自身的控制组中启动，因此停止服务会停止运行器及其启动的所有进程。<strong>不要</strong>添加 <code>NoNewPrivileges=yes</code>、<code>RestrictSUIDSGID=yes</code>，也不要添加移除 <code>CAP_SETUID</code> 和 <code>CAP_SETGID</code> 的 <code>CapabilityBoundingSet</code>：sudo 使用 setuid，这些设置中的任何一项都会导致所有运行器无法启动。<code>UMask=0077</code> 会经由 sudo 传递，因此智能体创建的文件只对工作负载用户开放。</p>
+<p>在 Ubuntu 24.04 上，仍需满足 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/permissions-and-sandbox.md#ubuntu-apparmor-host-prerequisite" target="_blank" rel="noreferrer">Ubuntu AppArmor 主机前置条件</a>。该配置按路径附加到 <code>/usr/local/bin/happy-agent</code>，因此同一配置会覆盖 sudo 从该文件启动的每个运行器；工作负载用户无需额外配置。</p>
+<p>重启服务以应用更改；<code>[execution]</code> 仅在启动时读取：</p>
+<pre><code class="language-sh">sudo systemctl restart happy-agent
+sudo journalctl -u happy-agent -n 100 --no-pager | grep -i &#x27;linux user&#x27;
+</code></pre>
+<p>日志会显示 <code>Agent work for the Linux user happy-work runs in its own runner.</code>。若缺少 sudo 规则、用户不存在或运行器无法启动，日志则会记录相应原因，说明需要修复的内容；守护进程会继续运行，以便用户仍能访问它。在问题修复并重启服务之前，节点上的每项工作都会因同一原因失败。</p>
+<h2 id="6-give-a-bot-a-linux-user-of-its-own">6. 为机器人分配专属 Linux 用户<a class="heading-anchor" href="#6-give-a-bot-a-linux-user-of-its-own" aria-label="链接到 6. 为机器人分配专属 Linux 用户"><span aria-hidden="true">#</span></a></h2>
+<p>对于供其他人对话的机器人，或不应看到节点项目的机器人：</p>
+<pre><code class="language-sh">sudo useradd --system --create-home --home-dir /home/happy-guest \
+  --shell /bin/bash happy-guest
+sudo chmod 0700 /home/happy-guest
+</code></pre>
+<p>按上文所述，将该用户添加到 sudo 规则的运行身份列表及 <code>[execution.bots.&lt;botId&gt;]</code> 中。该机器人管理的每个智能体——包括机器人本身、其子任务及子任务的协作者、其导出机器人的对话，以及它创建的任务——均以该用户身份执行文件操作和命令。</p>
+<p>机器人的文件夹由工作负载用户创建，因此只授予机器人用户访问该文件夹的权限，不授予其他权限。如果没有 <code>setfacl</code>，请安装 <code>acl</code> 包，并使用 <code>list_bots</code> 报告的文件夹：</p>
+<pre><code class="language-sh">BOT_FOLDER=/home/happy-work/happy/Bots/guest
+sudo setfacl -m u:happy-guest:x /home/happy-work /home/happy-work/happy /home/happy-work/happy/Bots
+sudo setfacl -R -m u:happy-guest:rwX,d:u:happy-guest:rwX,d:u:happy-work:rwX &quot;$BOT_FOLDER&quot;
+</code></pre>
+<p>父目录的遍历权限允许机器人用户按名称访问自己的文件夹，但不能列出或读取旁边的任何内容，因为工作负载用户的文件受 <code>UMask=0077</code> 保护。默认权限条目保证每个新文件都可供这两个用户使用。</p>
+<p>然后，通过<a href="https://happy.engineering/recepies/bot-settings/">机器人设置</a>将 <code>crossWorkspace: false</code>，让机器人只使用自己的智能体，这样它创建的每个子任务都会共享其文件夹。位于项目工作区中的子任务将以机器人用户身份在该用户无法写入的文件夹中运行，因而失败。</p>
+<p>此类机器人的变化如下：</p>
+<ul>
+<li>Stdio MCP 服务器以工作负载用户身份运行，由同一文件夹中的所有智能体共享，因此不会提供给该机器人；机器人会看到它们处于失败状态及相应原因。HTTP 服务器仍可使用。</li>
+<li>其文件夹中的终端和文件浏览、工作区初始化以及 Git 检出属于产品自身的工作，以工作负载用户身份运行。</li>
+</ul>
+<h2 id="7-limits-that-remain">7. 仍然存在的限制<a class="heading-anchor" href="#7-limits-that-remain" aria-label="链接到 7. 仍然存在的限制"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>与运行器一样，以工作负载用户身份运行的命令不能使用已附加的密钥，因为其值保留在守护进程中。需要在命令中使用密钥的机器人或项目目前无法采用此配置。</li>
+<li>与运行器完全相同，不会跟踪以工作负载用户身份运行的文件夹的实时 Git 状态，即改动文件列表和分支比较。<code>GET /v0/workspaces/:workspaceId/git</code> 会返回 <code>404</code>。</li>
+<li>Docker 工作区和机器人的 Docker 计算环境由工作负载用户的运行器启动，因此该用户需要 Docker。加入 <code>docker</code> 组相当于获得 root 权限，会使此隔离失效；授予前必须说明并获得批准，否则就不要在该节点启用 Docker。</li>
+</ul>
+<h2 id="8-verify-the-separation">8. 验证隔离<a class="heading-anchor" href="#8-verify-the-separation" aria-label="链接到 8. 验证隔离"><span aria-hidden="true">#</span></a></h2>
+<p>从运维人员的会话中运行以下命令，不要通过被检查守护进程的工具运行：</p>
+<pre><code class="language-sh"># The rule allows exactly the runner, as exactly the workload users.
+sudo -l -U happy-agent
+sudo -u happy-agent sudo -n -u root true &amp;&amp; echo &quot;WRONG: root is reachable&quot;
+sudo -u happy-agent sudo -n -u happy-work /bin/sh -c id &amp;&amp; echo &quot;WRONG: a shell is reachable&quot;
+sudo -u happy-work sudo -n true &amp;&amp; echo &quot;WRONG: the workload user has sudo&quot;
+
+# The workload user cannot read the daemon&#x27;s configuration, database, or credentials.
+sudo -u happy-work cat /var/lib/happy-agent/happy/config/happy.toml
+sudo -u happy-work ls /var/lib/happy-agent/.happy/agent
+sudo -u happy-work ls /var/lib/happy-agent/.config/happy-agent/credentials
+
+# The runners run as the workload users, inside the service&#x27;s control group.
+ps -o user,pid,args -u happy-work
+systemctl status happy-agent --no-pager
+</code></pre>
+<p>不得打印任何 <code>WRONG</code> 行。每条 <code>cat</code> 和 <code>ls</code> 都必须以 <code>Permission denied</code> 失败。<code>ps</code> 应列出以 <code>happy-work</code> 身份运行的 <code>/usr/local/bin/happy-agent runner --stdio</code>，且 <code>systemctl status</code> 应显示它位于该服务之下。</p>
+<p>然后，按照<a href="https://happy.engineering/recepies/#testing-a-deployed-node">测试已部署节点</a>操作，使用注册在 <code>/home/happy-work</code> 下的临时项目。让其中的智能体运行 <code>id -un</code> 和 <code>pwd</code>：应分别报告 <code>happy-work</code> 和 <code>/home/happy-work</code> 下的文件夹。对于拥有专属用户的机器人，向它发送一个小任务，让它在自己的文件夹中运行 <code>id -un</code>，并确认报告的是该用户。完成后归档临时项目。</p>
+<p>报告每项通过的检查，并明确说明哪些检查没有运行。</p></div>

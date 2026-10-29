@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>构建实时共享的 HTML 产物 · Happy 中文手册（非官方）</title>
+<meta name="description" content="Happy 非官方中文手册：构建实时共享的 HTML 产物。构建实时共享的 HTML 产物 # 当一个 产物需要保存内容或供多人共享时，请使用本指南，例如待办清单、投票、报名表、记分板、小游戏，或供人批注的仪表盘。每个 HTML 产物都有自己的键值存储。守护进程通过页面自身源下的 向页面提供存储服务，并将每项变更实时推送到所有已打开的页面">
+<meta name="theme-color" content="#f5f0e7">
+<style>
+/* 复用欢迎页配色、双滚动区布局与响应式断点；仅使用系统字体。 */
+:root{color-scheme:light;color:#183f38;background:#f5f0e7;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px}a{color:inherit;text-decoration:none}h1,h2,h3,p{margin-top:0}.site-shell{overflow-x:hidden;overflow-x:clip}.page-width{width:min(1180px,calc(100% - 64px));margin:0 auto}.site-header-wrap{background:#f5f0e7;border-bottom:1px solid transparent;position:sticky;top:0;z-index:40}.site-header{align-items:center;display:flex;justify-content:space-between;min-height:60px}.site-header-brand{align-items:center;display:flex;gap:1.15rem;min-width:0}.wordmark{color:#183f38;font-size:1.05rem;font-weight:700;letter-spacing:-.04em;white-space:nowrap}.wordmark span{color:#e6522c;margin-left:.28em}.site-header nav{align-items:center;display:flex;gap:1.65rem;font-size:.86rem;font-weight:500}.site-header nav>a{opacity:.82}.site-header nav>a:hover{opacity:1}.site-header nav>a[aria-current=page]{opacity:1;text-decoration:underline 2px #e6522c;text-underline-offset:.5em}.nav-github{align-items:center;display:inline-flex;gap:.45rem;height:30px;opacity:1!important;position:relative;transition:color .2s ease}.nav-github:after{content:"";inset:-7px -4px;position:absolute}.nav-github svg{display:block}.nav-github-count{font-family:"DM Mono",monospace;font-size:.76rem;font-weight:500;white-space:nowrap}.nav-github:hover{color:#e6522c}
+.document-site-shell{min-height:100vh}.docs-layout{display:grid;gap:4rem;grid-template-columns:210px minmax(0,760px);min-height:calc(100vh - 61px);padding-bottom:7rem;padding-top:3.5rem}.docs-sidebar{align-self:start;max-height:calc(100vh - 3rem);overflow-y:auto;position:sticky;scrollbar-color:transparent transparent;scrollbar-width:thin;top:1.5rem}.docs-sidebar:hover,.docs-sidebar:focus-within{scrollbar-color:#183f3845 transparent}.docs-navigation{display:grid;gap:1.5rem}.docs-nav-group h2,.docs-nav-fold summary{color:#183f38;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-size:.77rem;font-weight:700;letter-spacing:0;margin:0 0 .5rem}.docs-nav-fold summary{align-items:center;cursor:pointer;display:flex;justify-content:space-between;list-style:none;margin:0;min-height:32px}.docs-nav-fold summary::-webkit-details-marker{display:none}.docs-nav-fold summary:after{border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor;content:"";height:5px;margin-right:.5rem;transform:rotate(-45deg);width:5px;flex:none}.docs-nav-fold[open] summary:after{transform:rotate(45deg)}.docs-nav-fold[open] summary{margin-bottom:.5rem}.docs-nav-fold summary:focus-visible{border-radius:4px;outline:2px solid #e6522c;outline-offset:3px}.docs-nav-group ul{display:grid;gap:.2rem;list-style:none;margin:0;padding:0}.docs-nav-group a{border-radius:7px;color:#557068;display:block;font-size:.78rem;line-height:1.35;padding:.38rem .5rem}.docs-nav-group a:hover{background:#ebe5d9;color:#183f38}.docs-nav-group a[aria-current]{background:#dbe2cd;color:#183f38;font-weight:600}.docs-mobile-navigation{display:none}
+.document-article{min-width:0}.document-content{color:#294c45;font-size:1rem;line-height:1.75}.document-content h1,.document-content h2,.document-content h3{color:#183f38;font-family:"Space Grotesk","DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:600;letter-spacing:-.025em;text-wrap:balance}.document-content h1[id],.document-content h2[id],.document-content h3[id]{scroll-margin-top:2rem}.document-content h1{font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.15;margin:0 0 1.2rem}.document-content h2{border-top:1px solid #ddd6c8;font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.15;margin:4rem 0 1.2rem;padding-top:2.2rem}.document-content .heading-anchor{color:#e6522c;font-size:.7em;margin-left:.35em;opacity:0;text-decoration:none}.document-content h1:hover .heading-anchor,.document-content h2:hover .heading-anchor,.document-content .heading-anchor:focus{opacity:.55}.document-content .heading-anchor:hover{opacity:1}.document-content p{margin:0 0 1.25rem;text-wrap:pretty}.document-content>p:first-of-type{color:#557068;font-size:1.08rem}.document-content strong{color:#183f38;font-weight:700}.document-content a{color:#d94725;text-decoration:underline;text-decoration-color:#d9472559;text-underline-offset:.2em}.document-content a:hover{text-decoration-color:currentColor}.document-content ul{margin:0 0 1.4rem;padding-left:1.45rem}.document-content li{margin:.35rem 0;padding-left:.2rem}.document-content li::marker{color:#e6522c}
+/* 其他文档中的表格、命令与媒体保持完整，窄屏允许横向滚动。 */
+.document-content pre{background:#ebe5d9;border:1px solid #d9d3c5;border-radius:8px;overflow-x:auto;padding:1.1rem;white-space:pre;font-size:.85rem;line-height:1.6}.document-content code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.document-content pre code{overflow-wrap:normal}.document-content img,.document-content video{max-width:100%;height:auto}.document-content iframe{max-width:100%}.document-content table{display:block;max-width:100%;overflow-x:auto;border-collapse:collapse;margin:1.5rem 0}.document-content th,.document-content td{border:1px solid #d9d3c5;padding:.65rem .85rem;text-align:left}.document-content blockquote{border-left:3px solid #e6522c;margin:1.5rem 0;padding:.25rem 1rem;color:#557068}
+.document-pagination{border-top:1px solid #d9d3c5;display:grid;gap:1rem;grid-template-columns:1fr 1fr;margin-top:5rem;padding-top:1.5rem}.document-pagination a{border:1px solid #d5cebf;border-radius:10px;color:#183f38;font-size:.88rem;font-weight:600;padding:1rem}.document-pagination a:hover{border-color:#183f38}.document-pagination a span{color:#6b7f78;display:block;font-family:"DM Mono",monospace;font-size:.58rem;font-weight:500;letter-spacing:.06em;margin-bottom:.25rem;text-transform:uppercase}.document-pagination-next{text-align:right}
+.site-footer{background:#f0ebe0;border-top:1px solid #d9d3c5;padding:3.5rem 0}.footer-inner{display:grid;gap:2.5rem;grid-template-columns:1.4fr 1fr;align-items:start}.footer-statement{font-family:"Space Grotesk","DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:500;font-size:1.3rem;letter-spacing:-.01em;line-height:1.4;margin:0;max-width:30ch}.footer-meta{text-align:right}.footer-meta p{color:#47645e;font-size:.78rem;margin:.6rem 0 0}.footer-meta .footer-descriptor{color:#183f38;font-size:.9rem;margin-top:.45rem}.footer-links{display:flex;flex-wrap:wrap;font-size:.8rem;gap:.6rem 1.25rem;justify-content:flex-end;margin-bottom:1.1rem}.footer-links a{border-bottom:1px solid transparent}.footer-links a:hover{border-color:currentColor}.footer-links .footer-link-quiet{color:#6b7f78}.footer-people{display:block;margin-top:.85rem;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-size:.95rem;font-weight:400}.footer-people a{text-decoration:underline;text-underline-offset:3px}
+@media(min-width:761px){.docs-shell{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}.docs-shell .site-header-wrap{flex:0 0 auto}.docs-shell .docs-layout{flex:1 1 auto;margin:0;max-width:none;min-height:0;overflow:hidden;padding:0 0 0 max(32px,calc((100% - 1180px)/2));width:100%;grid-template-columns:210px minmax(0,1fr);column-gap:0}.docs-shell .docs-sidebar{align-self:stretch;height:100%;max-height:none;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:1.75rem 2px 3rem;position:static}.docs-shell .document-article{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:1.75rem 0 0 4rem;position:relative;scrollbar-width:thin;scrollbar-color:#183f3845 transparent}.docs-shell .document-article>.document-content,.docs-shell .document-article>.document-pagination{max-width:760px;padding-right:2rem}.docs-shell .site-footer{margin-top:4.5rem}.docs-shell .site-footer .footer-inner{margin:0;max-width:none;padding:0 3rem 0 2.5rem;width:auto}}
+@media(min-width:761px) and (max-width:900px){.docs-shell .docs-layout{grid-template-columns:190px minmax(0,1fr)}.docs-shell .document-article{padding-left:2.5rem}}
+@media(max-width:900px){.site-header nav{gap:1.2rem}}
+@media(max-width:760px){.page-width{width:min(100% - 40px,620px)}.site-header{gap:.75rem;min-height:52px}.site-header nav{gap:.85rem;font-size:.8rem}.site-header-brand{gap:.6rem}.footer-inner{grid-template-columns:1fr;gap:2rem}.footer-meta{text-align:left}.footer-links{justify-content:flex-start}.docs-mobile-navigation{border-bottom:1px solid #d9d3c5;display:block;padding-bottom:.25rem;padding-top:.25rem}.docs-mobile-trail{align-items:center;appearance:none;background:none;border:0;border-radius:7px;color:#183f38;cursor:pointer;display:flex;font-family:"DM Mono",monospace;font-size:12px;font-weight:500;gap:.5rem;letter-spacing:.06em;min-height:44px;padding:0;text-align:left;text-transform:uppercase;width:100%}.docs-mobile-trail:after{border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor;box-sizing:border-box;content:"";flex:none;height:6px;margin:0 4px 0 auto;transform:translateY(-1.5px) rotate(45deg);transition:transform .15s;width:6px}.docs-mobile-trail[aria-expanded=true]:after{transform:translateY(1.5px) rotate(-135deg)}.docs-mobile-trail:focus-visible{outline:2px solid #e6522c;outline-offset:2px}.docs-mobile-trail>span{flex:none}.docs-mobile-trail-group{color:#6b7f78}.docs-mobile-trail>.docs-mobile-trail-page{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.docs-mobile-menu{padding:.5rem 0 1rem}.docs-mobile-navigation .docs-navigation{gap:1.1rem;grid-template-columns:repeat(2,minmax(0,1fr))}.docs-sidebar{display:none}.docs-layout{display:block;min-height:0;padding-bottom:5rem;padding-top:2.5rem}.docs-shell{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}.docs-shell .docs-layout{display:flex;flex:1 0 auto;flex-direction:column;padding-bottom:0}.docs-shell .document-article{display:flex;flex:1 0 auto;flex-direction:column}.docs-shell .document-article>*{min-width:0}.docs-shell .document-pagination{margin-bottom:4rem}.docs-shell .site-footer{margin:auto calc(50% - 50vw) 0}.document-content h1[id],.document-content h2[id]{scroll-margin-top:72px}.document-content h2{margin-top:3.2rem}}
+@media(max-width:420px){.site-header nav{gap:.7rem}.site-header-brand{gap:.55rem}.wordmark{font-size:.98rem}.nav-github{gap:.35rem}.docs-mobile-navigation .docs-navigation,.document-pagination{grid-template-columns:1fr}.document-pagination-next{text-align:left}}
+
+</style>
+</head>
+<body><div id="app"><div class="site-shell document-site-shell docs-shell">
+<div class="site-header-wrap"><header class="site-header page-width" id="top"><div class="site-header-brand"><a class="wordmark" href="https://happy.engineering/" aria-label="Happy Engineering 官方首页">Happy<span>Engineering</span></a></div><nav aria-label="主导航"><a href="../../index.html" aria-current="page">文档</a><a class="nav-github" href="https://github.com/slopus/happy" target="_blank" rel="noopener noreferrer" aria-label="GitHub 上的 Happy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg><span class="nav-github-count">24k</span></a></nav></header></div>
+<div class="docs-mobile-navigation page-width"><button type="button" class="docs-mobile-trail" aria-expanded="false" aria-controls="docs-mobile-menu"><span class="docs-mobile-trail-group">操作配方（面向智能体）</span><span aria-hidden="true">/</span><span class="docs-mobile-trail-page">构建实时共享的 HTML 产物</span></button><div id="docs-mobile-menu" class="docs-mobile-menu" hidden><nav class="docs-navigation" aria-label="文档导航"><section class="docs-nav-group"><h2>从这里开始</h2><ul><li><a href="../../index.html">欢迎</a></li><li><a href="../../quick-start/index.html">快速开始</a></li><li><a href="../../chief-of-staff/index.html">参谋长</a></li><li><a href="../../how-it-works/index.html">工作原理</a></li><li><a href="../../vision/index.html">愿景</a></li><li><a href="../../team/index.html">团队</a></li></ul></section>
+<section class="docs-nav-group"><h2>功能</h2><ul><li><a href="../../models/index.html">模型与订阅</a></li><li><a href="../../permissions/index.html">权限与沙箱</a></li><li><a href="../../secrets/index.html">密钥管理</a></li><li><a href="../../workspaces/index.html">项目与工作区</a></li><li><a href="../../agents/index.html">永不终止的智能体</a></li><li><a href="../../mobile/index.html">移动端访问</a></li><li><a href="../../multiplayer/index.html">多人协作与团队</a></li><li><a href="../../extending/index.html">技能与 MCP</a></li></ul></section>
+<section class="docs-nav-group"><h2>指南</h2><ul><li><a href="../../guides/terminal/index.html">原版 Happy CLI</a></li><li><a href="../../guides/configuration/index.html">配置</a></li><li><a href="../../guides/remote-server/index.html">远程服务器</a></li></ul></section>
+<section class="docs-nav-group"><h2>博客</h2><ul><li><a href="../../workos/index.html">通过 WorkOS 实现团队登录</a></li><li><a href="../../tailcat/index.html">无需开放端口：Tailcat</a></li><li><a href="../../voice/index.html">通过 ElevenLabs 实现语音交互</a></li><li><a href="../../updates/index.html">在交互轮次中途更新</a></li><li><a href="../../stem-cell/index.html">干细胞</a></li></ul></section>
+<section class="docs-nav-group"><h2>对比</h2><ul><li><a href="../../desktop-app/index.html">适用于 Claude Code 与 Codex 的桌面应用</a></li><li><a href="../../mobile-app/index.html">在手机上使用 Claude Code</a></li><li><a href="../../claude-code-remote-control/index.html">Happy 与 Remote Control 对比</a></li><li><a href="../../t3-code/index.html">Happy 与 T3 Code 对比</a></li></ul></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>更新日志</summary><ul><li><a href="../../changelog/index.html">更新日志</a></li></ul></details></section>
+<section class="docs-nav-group"><details class="docs-nav-fold" open><summary>操作配方（面向智能体）</summary><ul><li><a href="../index.html">操作配方</a></li><li><a href="../first-project/index.html">从一个项目开始</a></li><li><a href="../mobile-access/index.html">设置或修复移动端访问</a></li><li><a href="../accounts-and-models/index.html">账号、模型、推理强度与服务层级</a></li><li><a href="../harnesses/index.html">运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体</a></li><li><a href="../wsl/index.html">在 Windows 中设置 WSL 项目</a></li><li><a href="../telegram/index.html">将机器人接入 Telegram</a></li><li><a href="../chat-bridge/index.html">将机器人接入任意聊天服务</a></li><li><a href="../bot-settings/index.html">通过机器人设置限制机器人</a></li><li><a href="index.html" aria-current="page">构建实时共享的 HTML 产物</a></li><li><a href="../peer-messaging/index.html">通过单个 WebSocket 连接两个 Happy 智能体</a></li><li><a href="../rest-api/index.html">通过 REST API 驱动 Happy 智能体</a></li><li><a href="../remote-agent/index.html">部署独立的远程智能体</a></li><li><a href="../team/index.html">创建并部署 Happy 团队</a></li><li><a href="../runner/index.html">添加专用运行节点</a></li><li><a href="../hardening/index.html">使用独立 Linux 用户加固节点</a></li><li><a href="../enterprise-sign-in/index.html">设置企业 JWT 登录</a></li><li><a href="../upgrade/index.html">升级 Happy 智能体</a></li></ul></details></section></nav></div></div>
+<main class="docs-layout page-width"><aside class="docs-sidebar"><nav class="docs-navigation" aria-label="文档导航"><section class="docs-nav-group"><h2>从这里开始</h2><ul><li><a href="../../index.html">欢迎</a></li><li><a href="../../quick-start/index.html">快速开始</a></li><li><a href="../../chief-of-staff/index.html">参谋长</a></li><li><a href="../../how-it-works/index.html">工作原理</a></li><li><a href="../../vision/index.html">愿景</a></li><li><a href="../../team/index.html">团队</a></li></ul></section>
+<section class="docs-nav-group"><h2>功能</h2><ul><li><a href="../../models/index.html">模型与订阅</a></li><li><a href="../../permissions/index.html">权限与沙箱</a></li><li><a href="../../secrets/index.html">密钥管理</a></li><li><a href="../../workspaces/index.html">项目与工作区</a></li><li><a href="../../agents/index.html">永不终止的智能体</a></li><li><a href="../../mobile/index.html">移动端访问</a></li><li><a href="../../multiplayer/index.html">多人协作与团队</a></li><li><a href="../../extending/index.html">技能与 MCP</a></li></ul></section>
+<section class="docs-nav-group"><h2>指南</h2><ul><li><a href="../../guides/terminal/index.html">原版 Happy CLI</a></li><li><a href="../../guides/configuration/index.html">配置</a></li><li><a href="../../guides/remote-server/index.html">远程服务器</a></li></ul></section>
+<section class="docs-nav-group"><h2>博客</h2><ul><li><a href="../../workos/index.html">通过 WorkOS 实现团队登录</a></li><li><a href="../../tailcat/index.html">无需开放端口：Tailcat</a></li><li><a href="../../voice/index.html">通过 ElevenLabs 实现语音交互</a></li><li><a href="../../updates/index.html">在交互轮次中途更新</a></li><li><a href="../../stem-cell/index.html">干细胞</a></li></ul></section>
+<section class="docs-nav-group"><h2>对比</h2><ul><li><a href="../../desktop-app/index.html">适用于 Claude Code 与 Codex 的桌面应用</a></li><li><a href="../../mobile-app/index.html">在手机上使用 Claude Code</a></li><li><a href="../../claude-code-remote-control/index.html">Happy 与 Remote Control 对比</a></li><li><a href="../../t3-code/index.html">Happy 与 T3 Code 对比</a></li></ul></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>更新日志</summary><ul><li><a href="../../changelog/index.html">更新日志</a></li></ul></details></section>
+<section class="docs-nav-group"><details class="docs-nav-fold" open><summary>操作配方（面向智能体）</summary><ul><li><a href="../index.html">操作配方</a></li><li><a href="../first-project/index.html">从一个项目开始</a></li><li><a href="../mobile-access/index.html">设置或修复移动端访问</a></li><li><a href="../accounts-and-models/index.html">账号、模型、推理强度与服务层级</a></li><li><a href="../harnesses/index.html">运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体</a></li><li><a href="../wsl/index.html">在 Windows 中设置 WSL 项目</a></li><li><a href="../telegram/index.html">将机器人接入 Telegram</a></li><li><a href="../chat-bridge/index.html">将机器人接入任意聊天服务</a></li><li><a href="../bot-settings/index.html">通过机器人设置限制机器人</a></li><li><a href="index.html" aria-current="page">构建实时共享的 HTML 产物</a></li><li><a href="../peer-messaging/index.html">通过单个 WebSocket 连接两个 Happy 智能体</a></li><li><a href="../rest-api/index.html">通过 REST API 驱动 Happy 智能体</a></li><li><a href="../remote-agent/index.html">部署独立的远程智能体</a></li><li><a href="../team/index.html">创建并部署 Happy 团队</a></li><li><a href="../runner/index.html">添加专用运行节点</a></li><li><a href="../hardening/index.html">使用独立 Linux 用户加固节点</a></li><li><a href="../enterprise-sign-in/index.html">设置企业 JWT 登录</a></li><li><a href="../upgrade/index.html">升级 Happy 智能体</a></li></ul></details></section></nav></aside>
+<article class="document-article" data-document="recepies/shared-app"><div class="document-content"><div class="document-content"><h1 id="build-a-live-shared-html-artifact">构建实时共享的 HTML 产物<a class="heading-anchor" href="#build-a-live-shared-html-artifact" aria-label="链接到构建实时共享的 HTML 产物"><span aria-hidden="true">#</span></a></h1>
+<p>当一个 <code>html</code> 产物需要保存内容或供多人共享时，请使用本指南，例如待办清单、投票、报名表、记分板、小游戏，或供人批注的仪表盘。每个 HTML 产物都有自己的键值存储。守护进程通过页面自身源下的 <code>/api/*</code> 向页面提供存储服务，并将每项变更实时推送到所有已打开的页面副本。</p>
+<p>准确的 HTTP 契约见已安装版本 <code>API.md</code> 中的“Artifact data”章节（在源码检出目录中为 <code>packages/happy-agent/API.md</code>）。本指南介绍浏览器 SDK，它封装了该契约，几乎所有页面都应优先选择它。</p>
+<h2 id="what-you-get">你将获得什么<a class="heading-anchor" href="#what-you-get" aria-label="链接到你将获得什么"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>每个产物独立的存储。</strong>同一产物的所有版本使用相同存储，因此通过修改文件发布新版本时，数据会保留。使用该 Happy Agent 的所有人共享这些数据：包括用户的每台设备，以及团队模式下的每位成员。</li>
+<li><strong>知道谁在查看。</strong><code>happy.user</code> 表示查看者：包含稳定的 <code>id</code>，以及 <code>name</code>、<code>firstName</code>、<code>lastName</code> 和 <code>photoUrl</code>，后几项都可能为 <code>null</code>。每次写入都会在 <code>updatedBy</code> 中记录作者，<code>happy.users.load(ids)</code> 可将这些 ID 转换为姓名和照片。身份始终来自已登录的人；页面不能冒充其他人。</li>
+<li><strong>你也可以读写数据。</strong><code>read_artifact_data</code> 展示产物数据及每个键的写入者，<code>write_artifact_data</code> 以你的身份设置或删除键。可以用它们汇报结果（“谁投了什么”）、填充初始数据，或修复错误值。你的写入会立即到达所有已打开的页面。其作者的 <code>kind: &quot;agent&quot;</code>，名称为你的机器人名称，或 <code>&quot;Agent&quot;</code>。</li>
+<li><strong>可读取时间的版本号。</strong>每次写入都会获得一个 UUIDv7 <code>version</code>，它大于存储中所有更早的版本。<code>happy.timeOf(version)</code> 返回对应的 <code>Date</code>。</li>
+<li><strong>实时变更。</strong>任何人的每项变更都会很快反映到所有被跟踪的值中。</li>
+<li><strong>自动处理网络故障。</strong>写入会立即应用到页面，守护进程不可达时则进入队列。SDK 会采用退避策略重试，每次写入都携带幂等 ID，因此响应丢失后的重试绝不会重复应用。变更流会自行重新连接，并从上次看到的版本继续。</li>
+<li><strong>自动向你报告问题。</strong>SDK 会将未捕获的错误、未处理的 Promise 拒绝、<code>console.error</code>、<code>console.warn</code> 以及自身同步问题发送到产物的调试日志；通过 <code>read_artifact_logs</code>，你可以查看谁在哪个版本遇到了这些问题。</li>
+</ul>
+<h2 id="rules-that-are-easy-to-get-wrong">容易出错的规则<a class="heading-anchor" href="#rules-that-are-easy-to-get-wrong" aria-label="链接到容易出错的规则"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>必须用 <code>&lt;script src=&quot;/api/v1/client.js&quot;&gt;&lt;/script&gt;</code> 加载 SDK。它由守护进程提供，因此会随 Happy Agent 升级；绝不要将其复制到产物中。</li>
+<li>始终使用绝对 URL <code>/api/...</code>。相对路径 <code>api/...</code> 会相对于页面自身路径解析，无法到达 API。</li>
+<li>不要在产物的 <code>api/</code> 目录下放置文件。显示页面的客户端会将 <code>/api/*</code> 发给守护进程，因此这些文件永远不会被提供。</li>
+<li>其他所有资源都保存在产物内：不要使用 CDN 或其他网络资源。页面可能在无法访问互联网的环境中打开。</li>
+<li>将存储视为共享且不可信的数据来源。任何页面副本，包括旧版本，都能写入任意键。验证读取的内容，使用 <code>textContent</code> 渲染文本，绝不用 <code>innerHTML</code>。</li>
+<li>设计键时，应尽量避免多人写入同一键。为每个条目分配独立的键（<code>todos/&lt;id&gt;</code>），而不是使用一个大数组；可行时也为每个人分配独立键（<code>votes/&lt;userId&gt;</code>）。计数器等真正共享的内容应使用 <code>happy.kv.update</code>。</li>
+<li>尚未确认的写入只保存在页面内存中，关闭页面就会丢失；守护进程的存储才是事实来源。</li>
+<li>在页面开头加入 <code>&lt;link rel=&quot;stylesheet&quot; href=&quot;/api/v1/style.css&quot;&gt;</code>，不要为 <code>html</code> 和 <code>body</code> 设置背景、外边距或内边距，让页面在浅色和深色模式下都能融入显示它的界面表层。内嵌应用会在回复中按完整高度绘制，因此不要设置固定高度，也不要设置内部滚动区域。保持扁平布局：不要在卡片内嵌套卡片，不要堆叠圆角卡片，也不要在卡片左侧添加彩色竖条。其余要求见 <code>../DESIGN.md</code> 中的 Happy 设计系统。</li>
+<li>按顺序编写页面：先 CSS，再 HTML，最后在 body 末尾放脚本，使其只在页面完整时运行。</li>
+</ol>
+<h2 id="standard-styles-and-components">标准样式与组件<a class="heading-anchor" href="#standard-styles-and-components" aria-label="链接到标准样式与组件"><span aria-hidden="true">#</span></a></h2>
+<p>每个产物页面还可以加载由守护进程与 SDK 一同提供的另外两个文件，它们也会随 Happy Agent 升级：</p>
+<ul>
+<li>首先加载 <code>/api/v1/style.css</code>。即使不做其他设置，页面也会像应用的一部分：使用应用的字体和字号、浅色和深色配色、滚动条，并在透明页面上为文本、链接、代码、表格和分隔线提供基础样式。每条规则的优先级权重都为零，因此你自己的 CSS 总会优先；应有意覆盖，而不是习惯性覆盖。使用其变量代替固定颜色，它们会承载应用的取值：<code>--happy-text</code>、<code>--happy-muted</code>、<code>--happy-faint</code>、<code>--happy-border</code>、<code>--happy-surface</code>、<code>--happy-accent</code>、<code>--happy-added</code>、<code>--happy-removed</code>、<code>--happy-diff-added</code>、<code>--happy-diff-removed</code>，以及 <code>--happy-chart-1</code> 至 <code>--happy-chart-6</code>；字体相关变量为 <code>--happy-font</code>、<code>--happy-mono</code>、<code>--happy-font-size</code> 和 <code>--happy-line-height</code>；自行绘制滚动条时可使用 <code>--happy-scrollbar-thumb</code>、<code>--happy-scrollbar-thumb-hover</code> 和 <code>--happy-scrollbar-size</code>。</li>
+<li>body 通过 <code>--happy-page-inset</code> 设置内缩：在聊天旁边或独立页面中，它对应应用的内容内缩；内嵌时则没有内缩，让页面与回复对齐。因此同一个页面可以适应全部三种场景；不要再自行添加外围外边距。</li>
+<li>最后加载 <code>/api/v1/components.js</code>。它定义了五个元素，从页面读取要显示的内容。在 Happy Desktop 中，差异和代码会使用应用自身的渲染器与样式绘制；在其他环境中则显示为不带高亮的普通编号行：</li>
+</ul>
+<pre><code class="language-html">&lt;!-- A unified diff, such as git diff writes, saved as a file of the artifact. --&gt;
+&lt;happy-diff src=&quot;changes.diff&quot;&gt;&lt;/happy-diff&gt;
+&lt;!-- One file of it, and only lines 40–52 of the changed file. --&gt;
+&lt;happy-diff src=&quot;changes.diff&quot; path=&quot;src/app.ts&quot; lines=&quot;40-52&quot;&gt;&lt;/happy-diff&gt;
+
+&lt;!-- Code from a file of the artifact: a header naming it, and only lines 40–52, numbered. --&gt;
+&lt;happy-code src=&quot;src/app.ts&quot; path=&quot;src/app.ts&quot; lines=&quot;40-52&quot;&gt;&lt;/happy-code&gt;
+&lt;!-- A snippet written in the page; language names it, otherwise path or src does. --&gt;
+&lt;happy-code language=&quot;python&quot;&gt;
+    &lt;script type=&quot;text/plain&quot;&gt;
+        def greet(name):
+            return f&quot;Hello, {name}!&quot;
+    &lt;/script&gt;
+&lt;/happy-code&gt;
+&lt;!-- Long lines wrap; nowrap on either element scrolls them instead. --&gt;
+&lt;happy-code src=&quot;src/app.ts&quot; nowrap&gt;&lt;/happy-code&gt;
+
+&lt;!-- The files a diff changes as a tree, with status and counts; clicking one scrolls to its diff. --&gt;
+&lt;happy-files src=&quot;changes.diff&quot;&gt;&lt;/happy-files&gt;
+&lt;happy-files&gt;
+    &lt;script type=&quot;application/json&quot;&gt;
+        [{ &quot;path&quot;: &quot;src/app.ts&quot;, &quot;status&quot;: &quot;modified&quot;, &quot;added&quot;: 12, &quot;removed&quot;: 3 }]
+    &lt;/script&gt;
+&lt;/happy-files&gt;
+
+&lt;!-- &quot;bar&quot;, &quot;hbar&quot;, &quot;line&quot;, or &quot;area&quot;, drawn at the element&#x27;s width; height=&quot;…&quot; sets a plot&#x27;s. --&gt;
+&lt;happy-chart type=&quot;bar&quot;&gt;
+    &lt;script type=&quot;application/json&quot;&gt;
+        {
+            &quot;labels&quot;: [&quot;Mon&quot;, &quot;Tue&quot;],
+            &quot;series&quot;: [{ &quot;name&quot;: &quot;Requests&quot;, &quot;values&quot;: [120, 340] }],
+            &quot;unit&quot;: &quot;rpm&quot;
+        }
+    &lt;/script&gt;
+&lt;/happy-chart&gt;
+
+&lt;!-- Mermaid flowcharts, sequence, state, class, and entity-relationship diagrams. --&gt;
+&lt;happy-diagram&gt;
+    &lt;script type=&quot;text/x-mermaid&quot;&gt;
+        flowchart LR
+            Write --&gt; Version
+    &lt;/script&gt;
+&lt;/happy-diagram&gt;
+</code></pre>
+<p>页面脚本也可以改为设置元素的 <code>source</code> 属性——差异文本、文件列表或差异文本、图表对象，或图示文本——元素就会重新绘制，因此实时应用可以用存储中的数据驱动图表。如果元素无法显示所提供的内容，会在原位说明原因。其他内容由你自行绘制：使用 <code>--happy-*</code> 配色的 SVG 可以自然融入。</p>
+<h2 id="the-sdk">SDK<a class="heading-anchor" href="#the-sdk" aria-label="链接到 SDK"><span aria-hidden="true">#</span></a></h2>
+<p>脚本一运行，<code>window.happy</code> 就已存在。</p>
+<div class="document-table-wrap"><table><thead><tr><th>成员</th><th>作用</th></tr></thead><tbody><tr><td><code>happy.ready</code></td><td>一个 Promise，在确定查看者身份且变更流首次连接后兑现。如果该 Happy Agent 没有数据 API，则会拒绝；旧版本不提供该 API。</td></tr><tr><td><code>happy.user</code></td><td>查看者；在 <code>ready</code> 之前为 <code>null</code>。</td></tr><tr><td><code>happy.status</code>、<code>happy.onStatus(fn)</code></td><td>可能为 <code>&quot;connecting&quot;</code>、<code>&quot;online&quot;</code>、<code>&quot;syncing&quot;</code>（已连接，有正在进行的写入或读取）、<code>&quot;offline&quot;</code>（正在重新连接），或 <code>&quot;unavailable&quot;</code>（产物已删除，或缺少 API）。<code>onStatus</code> 返回取消订阅函数。</td></tr><tr><td><code>happy.pending</code>、<code>happy.flush()</code></td><td>尚未确认的写入数量，以及在所有写入均获确认后兑现的 Promise。</td></tr><tr><td><code>happy.timeOf(version)</code></td><td>版本写入时的 <code>Date</code>。</td></tr><tr><td><code>happy.users.load(ids)</code>、<code>.get(id)</code>、<code>.cached(id)</code></td><td>按用户 ID 获取并缓存人员信息。每人包含 <code>id</code>、<code>kind</code>（<code>&quot;user&quot;</code>，代理写入则为 <code>&quot;agent&quot;</code>）、<code>name</code>、<code>firstName</code>、<code>lastName</code> 和 <code>photoUrl</code>（可直接用作 <code>&lt;img src&gt;</code>）。未知 ID 会被略过。</td></tr><tr><td><code>happy.kv.trackPrefix(prefix)</code></td><td>前缀下所有键的实时视图：<code>entries</code>（按键排序，仅包含当前有效的键）、<code>get(key)</code>、<code>loaded</code>、<code>pending</code>、<code>synced</code>、<code>subscribe(fn)</code>（立即调用，并在每次变更时调用；返回取消订阅函数），以及 <code>stop()</code>。</td></tr><tr><td><code>happy.kv.track(key)</code></td><td>单个键的实时视图：<code>exists</code>、<code>value</code>、<code>version</code>、<code>updatedBy</code>、<code>updatedAt</code>、<code>pending</code>、<code>loaded</code>、<code>synced</code>、<code>subscribe(fn)</code>、<code>set(value, options)</code>、<code>delete(options)</code> 和 <code>stop()</code>。</td></tr><tr><td><code>happy.kv.set(key, value, options)</code></td><td>写入 JSON 值。跟踪器会立即显示该值，并设置 <code>pending: true</code>。Promise 以确认后的条目兑现。选项：<code>{ ifVersion }</code> 仅在键仍为该版本时写入；<code>{ ifAbsent: true }</code> 仅在键没有值时写入。</td></tr><tr><td><code>happy.kv.delete(key, options)</code></td><td>删除键，选项与写入相同。</td></tr><tr><td><code>happy.kv.update(key, change)</code></td><td>执行读取、修改和比较后设置，发生冲突时最多重试 8 次。<code>change(current)</code> 接收当前值或 <code>undefined</code>，返回下一个值；返回 <code>undefined</code> 则删除键。</td></tr><tr><td><code>happy.kv.get(key)</code>、<code>.entry(key)</code>、<code>.list(prefix)</code></td><td>一次性读取：分别获取本页面看到的值、确认后的条目或 <code>null</code>，以及前缀下所有确认后的条目。</td></tr><tr><td><code>happy.kv.onChange(fn)</code></td><td>以条目形式接收本页面获知的、来自任何人的每项已确认变更。删除操作具有 <code>deleted: true</code>。</td></tr><tr><td><code>happy.debug.log(message, data, level)</code></td><td>向产物调试日志添加一条来源为 <code>app</code> 的记录。<code>data</code> 是可选 JSON；<code>level</code> 为 <code>&quot;info&quot;</code>（默认）、<code>&quot;warn&quot;</code> 或 <code>&quot;error&quot;</code>。用它记录有人报告问题时你希望了解的事件。</td></tr><tr><td><code>happy.debug.disable()</code>、<code>happy.debug.flush()</code></td><td>停止本页面的所有上报，或立即发送已排队的内容，而不是在两秒内发送。</td></tr></tbody></table></div>
+<p>条目的结构为 <code>{ key, value, deleted, version, updatedBy, updatedAt, writeId }</code>。跟踪视图额外提供 <code>exists</code> 和 <code>pending</code>。在视图中，写入待确认期间的 <code>updatedBy</code> 是查看者的 ID。</p>
+<p>被拒绝的写入会以携带 <code>status</code> 和 <code>code</code> 的 <code>Error</code> 拒绝其 Promise，跟踪器会丢弃乐观更新的值。当 <code>ifVersion</code> 或 <code>ifAbsent</code> 条件不成立时，<code>code</code> 为 <code>&quot;conflict&quot;</code>，此时 <code>error.current</code> 包含该键的当前状态。<code>&quot;too_large&quot;</code> 表示值超过 256 KiB，<code>&quot;storage_full&quot;</code> 表示存储超过 100,000 个键或 64 MiB。因网络而失败的写入绝不会被拒绝：它会等待并重试。</p>
+<p>键长为 1–512 个字符，不能含控制字符。值可以是任意 JSON。已删除的键会保留记录 30 天，让重新上线的页面能够获知删除；离线更久的页面会重新读取存储，这由 SDK 自动完成。</p>
+<h2 id="a-complete-example-a-shared-to-do-list">完整示例：共享待办清单<a class="heading-anchor" href="#a-complete-example-a-shared-to-do-list" aria-label="链接到完整示例：共享待办清单"><span aria-hidden="true">#</span></a></h2>
+<p>此页面列出所有人的待办事项，显示各作者的照片和姓名、同步状态，并支持离线使用。使用 <code>create_artifact</code> 将其创建为 <code>html</code> 产物，再通过 <code>write_artifact_file</code> 将其 <code>index.html</code> 原样写为：</p>
+<pre><code class="language-html">&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+    &lt;head&gt;
+        &lt;meta charset=&quot;utf-8&quot; /&gt;
+        &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot; /&gt;
+        &lt;title&gt;Shared to-dos&lt;/title&gt;
+        &lt;script src=&quot;/api/v1/client.js&quot;&gt;&lt;/script&gt;
+        &lt;style&gt;
+            :root {
+                color-scheme: light dark;
+            }
+            body {
+                font:
+                    15px/1.4 system-ui,
+                    sans-serif;
+                max-width: 34rem;
+                margin: 2rem auto;
+                padding: 0 1rem;
+            }
+            header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            #status {
+                font-size: 12px;
+                padding: 2px 8px;
+                border-radius: 99px;
+                background: color-mix(in srgb, currentColor 10%, transparent);
+            }
+            #status[data-status=&quot;online&quot;] {
+                background: color-mix(in srgb, green 20%, transparent);
+            }
+            #status[data-status=&quot;offline&quot;],
+            #status[data-status=&quot;unavailable&quot;] {
+                background: color-mix(in srgb, red 20%, transparent);
+            }
+            form {
+                display: flex;
+                gap: 8px;
+                margin: 1rem 0;
+            }
+            input[type=&quot;text&quot;] {
+                flex: 1;
+                padding: 6px 8px;
+            }
+            li {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 0;
+                list-style: none;
+            }
+            li.pending {
+                opacity: 0.6;
+            }
+            li.done .title {
+                text-decoration: line-through;
+                opacity: 0.6;
+            }
+            .title {
+                flex: 1;
+            }
+            .avatar {
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                object-fit: cover;
+                background: color-mix(in srgb, currentColor 20%, transparent);
+            }
+            .meta {
+                font-size: 12px;
+                opacity: 0.7;
+            }
+            ul {
+                padding: 0;
+            }
+        &lt;/style&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;header&gt;
+            &lt;h1&gt;Shared to-dos&lt;/h1&gt;
+            &lt;span id=&quot;status&quot;&gt;Connecting…&lt;/span&gt;
+        &lt;/header&gt;
+        &lt;form id=&quot;add&quot;&gt;
+            &lt;input id=&quot;text&quot; type=&quot;text&quot; placeholder=&quot;Add a to-do&quot; maxlength=&quot;200&quot; required /&gt;
+            &lt;button&gt;Add&lt;/button&gt;
+        &lt;/form&gt;
+        &lt;ul id=&quot;list&quot;&gt;&lt;/ul&gt;
+        &lt;script&gt;
+            const statusLabels = {
+                connecting: &quot;Connecting…&quot;,
+                online: &quot;Synced&quot;,
+                syncing: &quot;Syncing…&quot;,
+                offline: &quot;Offline, changes are saved here&quot;,
+                unavailable: &quot;Unavailable&quot;,
+            };
+            const status = document.getElementById(&quot;status&quot;);
+            function showStatus(value) {
+                status.dataset.status = value;
+                status.textContent = statusLabels[value] || value;
+            }
+            showStatus(happy.status);
+            happy.onStatus(showStatus);
+
+            const todos = happy.kv.trackPrefix(&quot;todos/&quot;);
+
+            document.getElementById(&quot;add&quot;).addEventListener(&quot;submit&quot;, (event) =&gt; {
+                event.preventDefault();
+                const input = document.getElementById(&quot;text&quot;);
+                const title = input.value.trim();
+                if (title === &quot;&quot;) return;
+                // One key per item, so two people adding at once never conflict.
+                happy.kv.set(&quot;todos/&quot; + crypto.randomUUID(), {
+                    title,
+                    done: false,
+                    by: happy.user &amp;&amp; happy.user.id,
+                    at: Date.now(),
+                });
+                input.value = &quot;&quot;;
+            });
+
+            // Load each author once, and draw again when their names and photos arrive.
+            const requested = new Set();
+            function loadAuthors(ids) {
+                const missing = ids.filter((id) =&gt; typeof id === &quot;string&quot; &amp;&amp; !requested.has(id));
+                if (missing.length === 0) return;
+                missing.forEach((id) =&gt; requested.add(id));
+                happy.users
+                    .load(missing)
+                    .then(render, () =&gt; missing.forEach((id) =&gt; requested.delete(id)));
+            }
+
+            function render() {
+                const list = document.getElementById(&quot;list&quot;);
+                list.replaceChildren();
+                const entries = todos.entries
+                    .filter((entry) =&gt; entry.value &amp;&amp; typeof entry.value.title === &quot;string&quot;)
+                    .sort((a, b) =&gt; (a.value.at || 0) - (b.value.at || 0));
+                loadAuthors(entries.map((entry) =&gt; entry.value.by));
+                for (const entry of entries) {
+                    const item = document.createElement(&quot;li&quot;);
+                    item.className =
+                        (entry.value.done ? &quot;done &quot; : &quot;&quot;) + (entry.pending ? &quot;pending&quot; : &quot;&quot;);
+
+                    const box = document.createElement(&quot;input&quot;);
+                    box.type = &quot;checkbox&quot;;
+                    box.checked = entry.value.done === true;
+                    box.addEventListener(&quot;change&quot;, () =&gt; {
+                        happy.kv.update(entry.key, (current) =&gt;
+                            current === undefined ? undefined : { ...current, done: box.checked },
+                        );
+                    });
+
+                    const author = happy.users.cached(entry.value.by);
+                    const avatar = document.createElement(&quot;img&quot;);
+                    avatar.className = &quot;avatar&quot;;
+                    avatar.alt = &quot;&quot;;
+                    if (author &amp;&amp; author.photoUrl) avatar.src = author.photoUrl;
+
+                    const title = document.createElement(&quot;span&quot;);
+                    title.className = &quot;title&quot;;
+                    title.textContent = entry.value.title;
+
+                    const meta = document.createElement(&quot;span&quot;);
+                    meta.className = &quot;meta&quot;;
+                    const when = entry.version ? happy.timeOf(entry.version) : null;
+                    meta.textContent =
+                        (author &amp;&amp; author.firstName ? author.firstName : &quot;Someone&quot;) +
+                        (when
+                            ? &quot; · &quot; +
+                              when.toLocaleTimeString([], { hour: &quot;2-digit&quot;, minute: &quot;2-digit&quot; })
+                            : &quot;&quot;);
+
+                    const remove = document.createElement(&quot;button&quot;);
+                    remove.textContent = &quot;✕&quot;;
+                    remove.title = &quot;Delete&quot;;
+                    remove.addEventListener(&quot;click&quot;, () =&gt; happy.kv.delete(entry.key));
+
+                    item.append(box, avatar, title, meta, remove);
+                    list.append(item);
+                }
+            }
+            todos.subscribe(render);
+
+            happy.ready.then(render, () =&gt; showStatus(&quot;unavailable&quot;));
+        &lt;/script&gt;
+    &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>在两个窗口或两台设备上打开它，在其中一个添加待办事项，另一个会立即显示。关闭网络，添加并勾选条目，再恢复网络：它们会同步，而且不会重复。</p>
+<h2 id="other-patterns">其他模式<a class="heading-anchor" href="#other-patterns" aria-label="链接到其他模式"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>投票或回应：</strong>每位投票者使用一个键 <code>votes/&lt;happy.user.id&gt;</code>，值为其选项。跟踪 <code>votes/</code> 前缀并统计。任何人都不会意外覆盖别人的投票。</li>
+<li><strong>计数器或共享总数：</strong><code>happy.kv.update(&quot;score&quot;, (n) =&gt; (n || 0) + 1)</code>。</li>
+<li><strong>单个共享文档，例如看板布局：</strong>跟踪对应键，写入时使用 <code>{ ifVersion: tracker.version }</code>。收到 <code>&quot;conflict&quot;</code> 拒绝时，显示 <code>error.current</code>，让用户合并或重试。</li>
+<li><strong>在线状态（“谁在这里”）：</strong>页面可见时，每 30 秒向 <code>presence/&lt;userId&gt;</code> 写入 <code>{ at: Date.now() }</code>，显示 <code>updatedAt</code> 较新的条目。在线状态键会不断积累，因此应在 <code>pagehide</code> 时删除自己的键。</li>
+<li><strong>最近活动：</strong>使用 <code>happy.kv.onChange</code> 订阅，并展示 <code>updatedBy</code> 和 <code>happy.timeOf(entry.version)</code>。</li>
+<li><strong>按创建时间排序：</strong>在键中使用 UUIDv7 风格或时间戳前缀，或按 <code>happy.timeOf(entry.version)</code> 排序；后者反映的是最近写入的时间。</li>
+</ul>
+<h2 id="without-the-sdk">不使用 SDK<a class="heading-anchor" href="#without-the-sdk" aria-label="链接到不使用 SDK"><span aria-hidden="true">#</span></a></h2>
+<p>每个 SDK 调用本质上都是向页面自身源下的 <code>/api/v1/...</code> 发起普通 HTTP 请求，具体见 <code>API.md</code>：<code>GET /api/v1/kv?prefix=</code>，<code>GET</code>、<code>PUT</code> 和 <code>DELETE /api/v1/kv/entry?key=</code>，<code>GET /api/v1/kv/changes?since=</code>，以及来自 <code>GET /api/v1/kv/events?since=</code> 的服务器发送事件。为写入提供 <code>writeId</code> 以保证重试安全，使用 <code>If-Match: &quot;&lt;version&gt;&quot;</code> 或 <code>If-None-Match: *</code> 进行比较后设置；收到 <code>reset</code> 事件后，先重新读取存储，再从其新游标开始接收流。</p>
+<h2 id="working-with-the-data-yourself">直接处理数据<a class="heading-anchor" href="#working-with-the-data-yourself" aria-label="链接到直接处理数据"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>发布后为应用填充初始数据：使用 <code>write_artifact_data</code>，按页面脚本读取的键和值结构写入，例如键为 <code>todos/&lt;id&gt;</code>，值为 <code>{&quot;title&quot;:&quot;…&quot;,&quot;done&quot;:false,&quot;at&quot;:&lt;ms&gt;}</code>。将 <code>value</code> 作为 JSON 文本传入。使用 <code>ifAbsent: true</code>，确保不会替换用户已经创建的内容。</li>
+<li>汇报数据：向 <code>read_artifact_data</code> 提供 <code>prefix</code>，即可列出键及其值、版本、作者和时间；通过 <code>pageCursor</code> 分页。</li>
+<li>修改其他人可能也在修改的值：先读取，再将 <code>ifVersion</code> 设为刚读取的版本进行写入。如果写入被拒绝，就重新读取后再决定；绝不能盲目重试。</li>
+<li>当数据结构必须改变时，优先修改页面。新旧版本共享一个存储，因此新版本仍须理解旧版本写入的数据。</li>
+</ul>
+<h2 id="debugging-your-app">调试应用<a class="heading-anchor" href="#debugging-your-app" aria-label="链接到调试应用"><span aria-hidden="true">#</span></a></h2>
+<p>上报自动进行。每个页面会将问题分批发送到 <code>/api/v1/debug/log</code>，每两秒一次，每分钟最多 60 条；浏览器离线或发送失败时，该批次会被丢弃而不是重试。SDK 自身的 <code>sync</code> 记录会说明变更流何时结束和重连、写入何时发生冲突或遭拒、页面何时必须重新读取数据，以及数据何时变为不可用。守护进程在数据旁为每个产物保留最近 7 天内最新的 1,000 条记录。</p>
+<h3 id="develop-with-happy-agent-artifact-dev">使用 <code>happy-agent artifact dev</code> 开发<a class="heading-anchor" href="#develop-with-happy-agent-artifact-dev" aria-label="链接到使用 happy-agent artifact dev 开发"><span aria-hidden="true">#</span></a></h3>
+<p>发布前，针对数据 API 的本地副本构建并测试应用：</p>
+<pre><code class="language-sh">happy-agent artifact dev ./my-app --scratch .context/my-app-data
+</code></pre>
+<p>它会在 <code>http://127.0.0.1:4173/</code> 提供该文件夹，使用与守护进程相同的代码、限制和 SDK 响应 <code>/api/*</code>，并将数据和调试日志保存在 <code>--scratch</code> 文件夹中（不提供该参数时，使用退出即删除的临时文件夹）。它绝不会触碰守护进程的数据。通过普通 shell 命令或工作区终端启动，然后通过代理的工作区代理打开预览；该代理会从对应代理自己的机器发起每个连接。受限命令私有沙箱内的监听器与工作区代理相互隔离。</p>
+<p>服务器的所有功能都位于 <code>/__happy/</code> 下：<code>/__happy/</code> 提供 HTML 面板，另有供脚本和你使用的 JSON 路由：</p>
+<div class="document-table-wrap"><table><thead><tr><th>路由</th><th>作用</th></tr></thead><tbody><tr><td><code>/?as=Alice</code></td><td>以虚构人物身份打开应用，包含姓名和自动生成的照片。每个标签页可以代表不同的人；不提供 <code>as</code> 时，页面身份为“You”。</td></tr><tr><td><code>GET /__happy/state</code></td><td>显示文件夹、生效中的故障、打开的变更流，以及所有已知人物。</td></tr><tr><td><code>POST /__happy/faults</code></td><td>可设置 <code>{ &quot;offline&quot;: true }</code>、<code>{ &quot;latencyMs&quot;: 800 }</code>、<code>{ &quot;failNext&quot;: 3 }</code>（返回 <code>503</code>，不应用写入），以及 <code>{ &quot;dropNext&quot;: 1 }</code>（应用写入后丢失响应）。</td></tr><tr><td><code>POST /__happy/streams/cut</code></td><td>切断所有打开的变更流，模拟连接中断。</td></tr><tr><td><code>POST /__happy/data/write</code></td><td><code>{ &quot;as&quot;: &quot;Bob&quot;, &quot;key&quot;: &quot;todos/1&quot;, &quot;value&quot;: {…} }</code>，或 <code>&quot;delete&quot;: true</code>：模拟其他人的写入，实时传到每个页面。</td></tr><tr><td><code>POST /__happy/data/seed</code></td><td><code>{ &quot;values&quot;: { &quot;key&quot;: value, … }, &quot;as&quot;: &quot;Bob&quot; }</code> 写入多个键。</td></tr><tr><td><code>GET</code> / <code>PUT /__happy/data</code></td><td>导出所有条目，包括删除标记和作者；或使用此类导出内容替换数据。</td></tr><tr><td><code>POST /__happy/data/reset</code></td><td>清除所有条目；已打开的页面会重新读取数据。</td></tr><tr><td><code>GET /__happy/logs</code>、<code>DELETE /__happy/logs</code></td><td>按最新在前返回调试日志，支持 <code>level</code>、<code>user</code>（姓名）、<code>limit</code> 和 <code>pageCursor</code>；或清空日志。</td></tr><tr><td><code>GET /__happy/requests</code>、<code>DELETE</code></td><td>最近 500 次数据请求，最新在前：请求者、状态、耗时以及应用的任何故障。</td></tr></tbody></table></div>
+<p>调试日志路由本身绝不会注入故障，因此日志能显示页面在中断期间上报的内容。以下循环可以发现大多数问题：</p>
+<ol>
+<li>启动 <code>artifact dev</code> 并打开应用，再带上 <code>?as=Bob</code> 打开一次。</li>
+<li>以两个人的身份分别修改，然后制造网络问题：离线、增加延迟、使几次写入失败或丢失响应、切断流。检查两个页面最终显示的内容一致，而且 <code>GET /__happy/data</code> 包含预期数据，没有重复条目。</li>
+<li>读取 <code>GET /__happy/logs?level=warn</code> 和 <code>GET /__happy/requests</code>，检查是否有异常。</li>
+<li>通过一次 <code>update_artifact</code> 调用发布应用文件，每个文件使用 <code>fromPath</code> 形式，例如 <code>{ &quot;fromPath&quot;: &quot;my-app/index.html&quot;, &quot;path&quot;: &quot;index.html&quot; }</code>，使这次调用只生成一个新版本。为新产物调用 <code>create_artifact</code> 时也使用相同的 <code>files</code>。用户使用后，通过 <code>read_artifact_logs</code> 并按 <code>level</code>、<code>userId</code> 或 <code>since</code> 筛选，查看谁遇到了什么问题。</li>
+</ol>
+<h3 id="reproduce-a-bug-with-real-data">使用真实数据复现问题<a class="heading-anchor" href="#reproduce-a-bug-with-real-data" aria-label="链接到使用真实数据复现问题"><span aria-hidden="true">#</span></a></h3>
+<p>从已发布产物的数据副本启动服务器：</p>
+<pre><code class="language-sh">happy-agent artifact dev ./my-app --from &lt;artifactId&gt;
+</code></pre>
+<p>它会通过守护进程一次性读取产物的数据，包括版本和作者姓名，并且绝不写回。如果服务器无法连接守护进程，先保存副本，再从文件启动：</p>
+<pre><code class="language-sh">happy-agent artifact snapshot &lt;artifactId&gt; --out .context/my-app-data.json
+happy-agent artifact dev my-app --seed .context/my-app-data.json --scratch .context/my-app-data
+</code></pre>
+<p><code>--seed</code> 也接受由键和值组成的普通 JSON 对象。</p>
+<h3 id="drive-it-with-a-browser">使用浏览器驱动验证<a class="heading-anchor" href="#drive-it-with-a-browser" aria-label="链接到使用浏览器驱动验证"><span aria-hidden="true">#</span></a></h3>
+<p>为了进行可重复的检查，可以使用 Playwright 和无头 Chromium 编写脚本，让真实浏览器访问开发服务器。不附带任何依赖：使用项目的包管理器在临时文件夹中安装 <code>playwright-core</code>（或 <code>playwright</code>），并使用电脑上已有的 Chromium（否则运行其 <code>playwright install chromium</code> 命令）。一个实用的脚本会：</p>
+<ul>
+<li>为每个人打开一个页面，使用 <code>page.goto(base + &quot;/?as=Alice&quot;)</code>，并等待 <code>window.happy.status === &quot;online&quot;</code>；</li>
+<li>记录 <code>page.on(&quot;console&quot;)</code> 中的错误与警告、<code>page.on(&quot;pageerror&quot;)</code> 和 <code>page.on(&quot;requestfailed&quot;)</code>；</li>
+<li>执行一段场景，在步骤之间调用 <code>POST /__happy/faults</code>，并通过 <code>page.waitForFunction</code> 等待每个页面的文本趋于一致；</li>
+<li>最后保留截图、各页面可见文本、<code>GET /__happy/data</code> 和 <code>GET /__happy/logs</code>，以便判断每个人看到了什么，以及存储实际保存了什么。</li>
+</ul>
+<p>注入故障期间出现请求失败和控制台错误是预期行为；其他异常都属于问题。</p>
+<h2 id="checks-before-you-publish">发布前检查<a class="heading-anchor" href="#checks-before-you-publish" aria-label="链接到发布前检查"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>页面通过绝对路径加载 <code>/api/v1/client.js</code>，产物不在 <code>api/</code> 下保存文件，也不从互联网加载任何内容。</li>
+<li>条目键按条目或按人划分，共享值使用 <code>update</code> 或 <code>ifVersion</code>。</li>
+<li>页面展示 <code>happy.status</code> 和待确认条目。</li>
+<li>对从存储读取的所有内容进行验证，并通过 <code>textContent</code> 渲染文本。</li>
+<li>已在 <code>happy-agent artifact dev</code> 中以两个人的身份运行，并验证离线和响应丢失场景；两个页面最终一致，没有重复条目，调试日志也没有意外内容。</li>
+</ul></div>
+</div>
+<nav class="document-pagination" aria-label="文档上一页与下一页"><a class="document-pagination-prev" href="../bot-settings/index.html"><span>上一页</span>通过机器人设置限制机器人</a><a class="document-pagination-next" href="../peer-messaging/index.html"><span>下一页</span>通过单个 WebSocket 连接两个 Happy 智能体</a></nav>
+<footer class="site-footer"><div class="page-width footer-inner"><p class="footer-statement">我们围绕智能体构建交互界面：让你掌控它们的方式、它们运行的方式，以及团队与它们共享上下文的方式。<span class="footer-people"><a href="https://x.com/Ex3NDR" target="_blank" rel="noopener noreferrer">@Ex3NDR</a> 与 <a href="https://x.com/bra1n_dump" target="_blank" rel="noopener noreferrer">@bra1n_dump</a></span></p><div class="footer-meta"><div class="footer-links" aria-label="页脚导航"><a href="../../index.html">文档</a><a href="../../desktop-app/index.html">桌面应用</a><a href="../../mobile-app/index.html">手机应用</a><a href="../../privacy/index.html">隐私政策</a><a href="../../terms/index.html">服务条款</a><a class="footer-link-quiet" href="https://happy.engineering/docs/">原版 Happy CLI</a></div><a class="wordmark" href="https://happy.engineering/" aria-label="Happy Engineering 官方首页">Happy<span>Engineering</span></a><p class="footer-descriptor">在同一款应用中编排 Claude、Codex、Grok、Gemini 等智能体</p><p>© 2026 Happy Engineering</p><p>非官方中文翻译 · <a href="https://happy.engineering/recepies/shared-app/" data-original="true">查看本页原文</a></p></div></div></footer>
+</article></main></div></div>
+<script>
+/* 仅复现原站移动端导航，点击站内链接后收起。 */
+const trail=document.querySelector('.docs-mobile-trail');
+const menu=document.getElementById('docs-mobile-menu');
+trail.addEventListener('click',()=>{const expanded=trail.getAttribute('aria-expanded')==='true';trail.setAttribute('aria-expanded',String(!expanded));menu.hidden=expanded;});
+menu.addEventListener('click',event=>{if(event.target.closest('a')){menu.hidden=true;trail.setAttribute('aria-expanded','false');}});
+</script>
+</body></html>

@@ -1,0 +1,44 @@
+<div class="document-content"><h1 id="no-open-ports-how-happy-reaches-your-server">无需开放端口：Happy 如何连接你的服务器<a class="heading-anchor" href="#no-open-ports-how-happy-reaches-your-server" aria-label="链接到 无需开放端口：Happy 如何连接你的服务器"><span aria-hidden="true">#</span></a></h1>
+<p>Happy Desktop 连接<a href="https://happy.engineering/guides/remote-server/">远程 Happy Agent</a> 时使用的是 <a href="https://github.com/tailscale/tailcat" target="_blank" rel="noreferrer">Tailcat</a>。Tailcat 是 Tailscale 的开源数据平面，不包含其控制平面。服务器无需开放任何端口，也不需要公网 IP，任何人都无需 Tailscale 账号。从你的机器到服务器的流量由 WireGuard 加密，而服务器仍会对隧道内的每个请求检查凭据。</p>
+<p><img src="https://happy.engineering/img/tailcat.svg" alt="Happy Desktop 如何通过 Tailcat 连接服务器。Happy Desktop 和服务器都主动连接 DERP 中继；两者都不开放入站端口。它们进行端到端 WireGuard 握手，Desktop 端使用一次性客户端密钥，服务器密钥及预共享密钥则取自 tc… 地址。NAT 允许时，它们切换到直接 UDP 路径；否则中继继续转发密文。在隧道内，Happy Agent 位于 server.tailcat:24779 的普通 HTTP API 仍要求每个请求携带持有者令牌或团队登录凭据。地址编码了服务器密钥、预共享密钥和中继区域；持有地址的人只能到达认证关口，不能直接访问智能体。手机改用 Happy 自己的中继，采用端到端加密，不受服务器是否在线影响。" loading="lazy"></p>
+<h2 id="what-tailcat-is">Tailcat 是什么<a class="heading-anchor" href="#what-tailcat-is" aria-label="链接到 Tailcat 是什么"><span aria-hidden="true">#</span></a></h2>
+<p>“由 Tailscale 打造、不依赖 Tailscale 服务的 Tailscale。”Tailcat 提取了 Tailscale 中负责传输数据包的部分——WireGuard 隧道、NAT 穿透和 DERP 中继——而不包含协调服务器。一端运行 Tailcat 服务器并获得一个简短的 <code>tc…</code> 地址；另一端连接这个地址。双方在中继处会合，尝试穿透 NAT 建立直接 UDP 路径，失败时继续使用中继。它运行在用户空间，不需要 root 权限，也不修改路由表或 DNS。Tailscale 为其提供有速率限制的免费中继；默认的 <a href="https://tailcat.dev/derpmap.json" target="_blank" rel="noreferrer">DERP 映射</a>列出了这些中继，你也可以<a href="https://github.com/tailscale/tailscale/tree/main/cmd/derper#derp" target="_blank" rel="noreferrer">运行自己的中继</a>。</p>
+<h2 id="what-happy-agent-adds">Happy Agent 提供的额外能力<a class="heading-anchor" href="#what-happy-agent-adds" aria-label="链接到 Happy Agent 提供的额外能力"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>统一构建，统一版本。</strong>每个 Happy Agent 发布版二进制文件都内嵌 Tailcat v0.7.0。从源码检出运行或使用 npm 包时，则调用 PATH 中的 <code>tailcat</code>。</li>
+<li><strong>稳定的身份。</strong>首次启用 Tailcat 时，Happy Agent 会运行 <code>tailcat genkey</code>，并将私钥保存在 <code>~/.happy/agent/tailcat/default.private.json</code> 中，该目录仅允许所属用户访问。重启以及禁用后重新启用都不会改变地址。请勿复制或分享这个文件。</li>
+<li><strong>固定端口。</strong><code>tailcat serve</code> 将一个回环端口（默认为 24779）转发到 Happy Agent API：独立模式下对应仅所有者可访问的 Unix 套接字，团队模式下对应 HTTP 监听器。Happy Agent 严格绑定指定端口，绝不改用其他端口，因此地址和端口可以一起保存。</li>
+<li><strong>进程托管。</strong>Tailcat 在 API 完成绑定后启动；若进程退出，会使用同一身份重新启动。运行期间，<code>~/.happy/agent/tailcat/address</code> 和 <code>port</code> 保存当前实际值。</li>
+<li><strong>仅管理员可操作，并经过审查。</strong>只有处于活动状态的管理员机器人（默认是参谋长）才能开启或关闭 Tailcat，或读取其状态。修改这项设置属于互联网暴露操作；在 Auto 模式下，Happy 会在工具运行前审查具体操作。</li>
+</ul>
+<p><a href="https://happy.engineering/chief-of-staff/">参谋长</a>部署服务器时，会先征得你的同意才启用此功能。手动配置时，在机器级 <code>happy.toml</code> 中写入：</p>
+<pre><code class="language-toml">[feature.tailcat]
+enabled = true
+port = 24779
+</code></pre>
+<p>团队创建时会向 Happy Cloud 注册 <code>tailcat://ADDRESS:PORT</code>，每位成员的 Desktop 都通过它找到服务器。</p>
+<h2 id="every-connection">每次连接的过程<a class="heading-anchor" href="#every-connection" aria-label="链接到 每次连接的过程"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li><strong>一次性客户端密钥。</strong>Desktop 内的 Happy Agent 使用服务器地址启动 <code>tailcat --key=new socks</code>：为此次传输进程创建全新的 WireGuard 密钥，并在 127.0.0.1 上启动 SOCKS5 监听器。</li>
+<li><strong>在中继处会合。</strong>两台机器都主动连接地址中指定的中继区域。双方都不接受入站连接。它们通过中继交换路径发现消息，在 NAT 允许时切换到直接 UDP 路径。若不允许，则继续由中继转发。</li>
+<li><strong>端到端 WireGuard 加密。</strong>握手使用地址中的服务器密钥、地址中的预共享密钥，以及一次性客户端密钥。握手后的所有内容都是两台机器之间的密文。中继只转发已经加密的数据包，无法解密；它能够看到 IP 地址、时间、数据大小，以及用于路由的公钥。</li>
+<li><strong>隧道内部使用 HTTP。</strong>Happy Agent 通过 SOCKS 监听器连接到 <code>server.tailcat</code> 的固定端口，在隧道内使用其普通 HTTP API。API 令牌在隧道内传输，绝不会交给 Tailcat 进程。</li>
+</ol>
+<h2 id="the-address-is-not-the-lock">地址不等于门锁<a class="heading-anchor" href="#the-address-is-not-the-lock" aria-label="链接到 地址不等于门锁"><span aria-hidden="true">#</span></a></h2>
+<p><code>tc…</code> 地址编码了服务器的公钥、中继区域，以及自 Tailcat v0.6.0 起加入的 WireGuard 预共享密钥。Happy 始终启用预共享密钥，因此地址不仅是定位信息，也是机密：中继可以看到经过的服务器公钥，但没有预共享密钥就无法打开隧道。请将地址视为私密信息。</p>
+<p>只有地址仍然无法进入系统。Happy 不使用 Tailcat 的客户端允许列表，因此任何持有地址的人都只能到达 Happy Agent 的认证边界，无法继续深入。隧道内的每个请求（包括健康检查），在独立模式下都需要服务器的持有者令牌，在团队模式下都需要<a href="https://happy.engineering/workos/">团队登录</a>。隧道成功打开后返回 <code>401</code>，表示传输正常，但凭据无效。</p>
+<p>旧版 Happy Agent 内置 Tailcat v0.4.0，所创建的身份没有预共享密钥。服务器会继续提供服务并给出警告，各版本客户端都能连接。对于这样的地址，任何获知服务器公钥和区域的人（包括中继运营者）都能到达认证边界。替换身份密钥会生成当前版本的地址；团队随后需要通过 <code>update_happy_team</code> 发布新端点。反过来也有限制：Tailcat v0.5.0 及更早版本无法连接当前版本的地址。</p>
+<h2 id="your-phone-is-different">手机的连接方式不同<a class="heading-anchor" href="#your-phone-is-different" aria-label="链接到 手机的连接方式不同"><span aria-hidden="true">#</span></a></h2>
+<p>手机不使用 Tailcat。服务器通过 Happy 自己的中继，以<a href="https://happy.engineering/mobile/">端到端加密</a>方式将会话发布到你的 Happy 账号，因此即使服务器离线，你的手机也能读取会话。</p>
+<h2 id="why-tailcat">为什么选择 Tailcat<a class="heading-anchor" href="#why-tailcat" aria-label="链接到 为什么选择 Tailcat"><span aria-hidden="true">#</span></a></h2>
+<p>我们希望你用连着酒店 Wi-Fi 的笔记本就能访问服务器，无需端口转发、VPN、公网 IP，也无需再注册一个账号。Tailcat 恰好解决了这个问题：它基于 Tailscale 在生产环境使用的同一套 WireGuard、magicsock 和 DERP 代码构建，开源，并使用 Tailscale 运营的免费中继。感谢 Tailscale。</p>
+<h2 id="try-it-by-hand">手动试用<a class="heading-anchor" href="#try-it-by-hand" aria-label="链接到 手动试用"><span aria-hidden="true">#</span></a></h2>
+<p>在另一台机器上准备好 <a href="https://github.com/tailscale/tailcat/releases" target="_blank" rel="noreferrer">Tailcat</a>，并从服务器取得三个值后，一条命令即可通过隧道检查独立服务器的健康状态：</p>
+<pre><code class="language-sh">TAILCAT_ADDRESS=&quot;tc...&quot;   # ~/.happy/agent/tailcat/address
+TAILCAT_PORT=&quot;24779&quot;      # ~/.happy/agent/tailcat/port
+HAPPY_TOKEN=&quot;...&quot;         # ~/.happy/agent/token
+
+tailcat socks &quot;$TAILCAT_ADDRESS&quot; curl \
+  -H &quot;Authorization: Bearer $HAPPY_TOKEN&quot; \
+  &quot;http://server.tailcat:$TAILCAT_PORT/v0/health&quot;
+</code></pre></div>

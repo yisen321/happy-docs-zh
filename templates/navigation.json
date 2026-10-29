@@ -1,0 +1,9 @@
+[
+  {"title":"从这里开始","items":[["welcome","欢迎"],["quick-start","快速开始"],["chief-of-staff","参谋长"],["how-it-works","工作原理"],["vision","愿景"],["team","团队"]]},
+  {"title":"功能","items":[["models","模型与订阅"],["permissions","权限与沙箱"],["secrets","密钥管理"],["workspaces","项目与工作区"],["agents","永不终止的智能体"],["mobile","移动端访问"],["multiplayer","多人协作与团队"],["extending","技能与 MCP"]]},
+  {"title":"指南","items":[["guides/terminal","原版 Happy CLI"],["guides/configuration","配置"],["guides/remote-server","远程服务器"]]},
+  {"title":"博客","items":[["workos","通过 WorkOS 实现团队登录"],["tailcat","无需开放端口：Tailcat"],["voice","通过 ElevenLabs 实现语音交互"],["updates","在交互轮次中途更新"],["stem-cell","干细胞"]]},
+  {"title":"对比","items":[["desktop-app","适用于 Claude Code 与 Codex 的桌面应用"],["mobile-app","在手机上使用 Claude Code"],["claude-code-remote-control","Happy 与 Remote Control 对比"],["t3-code","Happy 与 T3 Code 对比"]]},
+  {"title":"更新日志","fold":true,"items":[["changelog","更新日志"]]},
+  {"title":"操作配方（面向智能体）","fold":true,"items":[["recepies","操作配方"],["recepies/first-project","从一个项目开始"],["recepies/mobile-access","设置或修复移动端访问"],["recepies/accounts-and-models","账号、模型、推理强度与服务层级"],["recepies/harnesses","运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体"],["recepies/wsl","在 Windows 中设置 WSL 项目"],["recepies/telegram","将机器人接入 Telegram"],["recepies/chat-bridge","将机器人接入任意聊天服务"],["recepies/bot-settings","通过机器人设置限制机器人"],["recepies/shared-app","构建实时共享的 HTML 产物"],["recepies/peer-messaging","通过单个 WebSocket 连接两个 Happy 智能体"],["recepies/rest-api","通过 REST API 驱动 Happy 智能体"],["recepies/remote-agent","部署独立的远程智能体"],["recepies/team","创建并部署 Happy 团队"],["recepies/runner","添加专用运行节点"],["recepies/hardening","使用独立 Linux 用户加固节点"],["recepies/enterprise-sign-in","设置企业 JWT 登录"],["recepies/upgrade","升级 Happy 智能体"]]}
+]

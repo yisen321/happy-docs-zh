@@ -1,0 +1,194 @@
+<div class="document-content"><h1 id="harden-a-node-with-separate-linux-users">Harden a node with separate Linux users<a class="heading-anchor" href="#harden-a-node-with-separate-linux-users" aria-label="Link to Harden a node with separate Linux users"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe to split one Linux machine that runs Happy Agent into two kinds of account. The
+<strong>service user</strong> (here <code>happy-agent</code>) runs the daemon, and only it can read the configuration,
+database, provider credentials, and API token. The <strong>workload user</strong> (here <code>happy-work</code>) runs
+everything agents do: file tools and commands, Git, workspace checkouts and setup, terminals, file
+browsing, previews, and MCP stdio servers. An agent command that goes wrong, or a dependency that
+runs hostile code, then runs as an account that cannot read anything worth stealing. Specific
+bots can run as a user of their own on top of that, such as a bot other people talk to.</p>
+<p>The daemon starts one small runner per workload user through sudo, with
+<code>sudo -n -u &lt;user&gt; -- /usr/local/bin/happy-agent runner --stdio</code>, and talks to it over its
+standard input and output with the same protocol a <a href="https://happy.engineering/recepies/runner/">dedicated runner</a> uses. Agent
+commands still run in the normal sandbox inside it. The daemon never runs agent work itself once
+this is configured: a missing sudo rule, an unknown user, or a runner that will not start makes
+that work fail with the reason, and nothing falls back to the service user.</p>
+<p>A <a href="https://happy.engineering/recepies/runner/">dedicated runner</a> on a separate machine is still the stronger separation, and
+it is what to recommend for a remote node. This recipe is for a node that runs its own work, and
+for hardening any machine that runs Happy Agent as a service. The two cannot be combined on one
+node: once runners are configured nothing runs on the node&#x27;s machine, so the daemon refuses
+<code>[execution]</code> beside <code>[runners]</code>. Harden a runner host by giving <code>happy-runner</code> nothing but its
+own folders, as that recipe does.</p>
+<p>Read <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#work-as-separate-linux-users" target="_blank" rel="noreferrer">Work as separate Linux users</a> for the
+settings. The walkthrough targets a Linux host with systemd and sudo, on top of
+<a href="https://happy.engineering/recepies/remote-agent/">Deploy a standalone remote agent</a> or a
+<a href="https://happy.engineering/recepies/team/">team deployment</a>. Execute it end to end, as the <a href="https://happy.engineering/recepies/">recipe rules</a>
+describe; ask only for the choices below that are still missing.</p>
+<h2 id="1-resolve-the-choices">1. Resolve the choices<a class="heading-anchor" href="#1-resolve-the-choices" aria-label="Link to 1. Resolve the choices"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Which node, and whether it is a fresh installation. Apply this <strong>before the daemon first
+starts</strong>. The home project, the Chief of Staff&#x27;s folder, and every bot, task, project, and
+workspace folder are placed under the workload user&#x27;s home. On an existing node, folders
+already created under the service user&#x27;s home stay there, out of the workload user&#x27;s reach,
+and their agents fail with <code>Permission denied</code>; tell the user, and plan to register their
+projects again under the workload user&#x27;s home.</li>
+<li>The workload user&#x27;s name. <code>happy-work</code> is the default here. Names are a lowercase letter or
+<code>_</code> followed by up to 31 lowercase letters, digits, <code>_</code>, or <code>-</code>; <code>root</code> and the service user
+itself are refused.</li>
+<li>Whether any bot should run as a user of its own, and which. Find each bot&#x27;s ID with
+<code>list_bots</code>; the bot ID is not its agent ID. Bots are created before they can be named here,
+so a bot gets its own user after it exists.</li>
+<li>Which runtimes, package managers, and Git identity the projects need. They belong to the
+workload user, not the service user.</li>
+</ul>
+<h2 id="2-prepare-the-service-user">2. Prepare the service user<a class="heading-anchor" href="#2-prepare-the-service-user" aria-label="Link to 2. Prepare the service user"><span aria-hidden="true">#</span></a></h2>
+<p>Follow the deployment recipe&#x27;s service account step: <code>happy-agent</code> with home
+<code>/var/lib/happy-agent</code>, mode <code>0700</code>, owning <code>happy/config</code>, <code>.happy</code>, and the credentials folder,
+each <code>0700</code>, with <code>happy.toml</code> and credential files <code>0600</code>. Install the release binary root-owned
+at <code>/usr/local/bin/happy-agent</code>, mode <code>0755</code>, in root-owned directories. The workload user runs
+that same file, so it must not live in the service user&#x27;s home: a binary under <code>~/.happy/dist</code> is
+unreachable once that home is <code>0700</code>. Check both:</p>
+<pre><code class="language-sh">sudo stat -c &#x27;%U %a %n&#x27; /var/lib/happy-agent /var/lib/happy-agent/.happy \
+  /var/lib/happy-agent/happy/config /var/lib/happy-agent/happy/config/happy.toml
+ls -l /usr/local/bin/happy-agent
+</code></pre>
+<p>Expect <code>happy-agent 700</code> on each directory, <code>happy-agent 600</code> on <code>happy.toml</code>, and a binary owned
+by <code>root</code>.</p>
+<h2 id="3-create-the-workload-user">3. Create the workload user<a class="heading-anchor" href="#3-create-the-workload-user" aria-label="Link to 3. Create the workload user"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-sh">sudo useradd --system --create-home --home-dir /home/happy-work \
+  --shell /bin/bash happy-work
+sudo chmod 0700 /home/happy-work
+id happy-work
+</code></pre>
+<p><code>id</code> must show no <code>sudo</code>, <code>adm</code>, <code>docker</code>, <code>lxd</code>, or <code>happy-agent</code> group: each would give agent
+commands a way back to what this separates. Install the projects&#x27; runtimes for <code>happy-work</code>, and
+give it the agreed Git identity:</p>
+<pre><code class="language-sh">sudo -u happy-work -H git config --global user.name &quot;CONFIRMED_NAME&quot;
+sudo -u happy-work -H git config --global user.email &quot;CONFIRMED_EMAIL&quot;
+</code></pre>
+<p>Git in the workload user&#x27;s runner uses that user&#x27;s configured Git authentication, exactly as on
+a dedicated runner. Install <code>gh</code> or other command-line
+logins for <code>happy-work</code> only if the user wants agents to use them, and only with an account whose
+reach they accept for every agent on the node.</p>
+<p>Folders are laid out under the workload user&#x27;s home, the way a runner lays out its own:</p>
+<div class="document-table-wrap"><table><thead><tr><th>Folder</th><th>What lives there</th><th>Owner</th></tr></thead><tbody><tr><td><code>/home/happy-work</code></td><td>The home project</td><td><code>happy-work</code></td></tr><tr><td><code>/home/happy-work/Happy/Projects</code></td><td>Projects Happy Agent clones</td><td><code>happy-work</code></td></tr><tr><td><code>/home/happy-work/happy/workspaces</code></td><td>Managed workspaces</td><td><code>happy-work</code></td></tr><tr><td><code>/home/happy-work/happy/Bots/&lt;name&gt;</code></td><td>Each bot&#x27;s folder</td><td><code>happy-work</code></td></tr><tr><td><code>/home/happy-work/happy/Tasks/&lt;name&gt;</code></td><td>Each task&#x27;s folder</td><td><code>happy-work</code></td></tr><tr><td><code>/var/lib/happy-agent</code></td><td>Configuration, database, credentials</td><td><code>happy-agent</code></td></tr></tbody></table></div>
+<p><code>HAPPY_AGENT_WORKSPACES_DIRECTORY</code> and <code>HAPPY_AGENT_PROJECTS_DIRECTORY</code> describe the service
+user&#x27;s own layout and do not move these. Register an existing repository for the node only once it
+is somewhere <code>happy-work</code> owns, such as <code>/home/happy-work/src/&lt;name&gt;</code>.</p>
+<h2 id="4-allow-exactly-one-command-through-sudo">4. Allow exactly one command through sudo<a class="heading-anchor" href="#4-allow-exactly-one-command-through-sudo" aria-label="Link to 4. Allow exactly one command through sudo"><span aria-hidden="true">#</span></a></h2>
+<p>The service user needs to start the runner as the workload users and nothing else. Write the
+rule to a private temporary file, check it, and only then install it:</p>
+<pre><code class="language-sh">umask 077
+cat &gt; /tmp/happy-agent.sudoers &lt;&lt;&#x27;EOF&#x27;
+# Happy Agent starts a runner as each workload user. Nothing else is allowed.
+happy-agent ALL=(happy-work) NOPASSWD: /usr/local/bin/happy-agent runner --stdio
+EOF
+sudo visudo -cf /tmp/happy-agent.sudoers
+sudo install -m 0440 -o root -g root /tmp/happy-agent.sudoers /etc/sudoers.d/happy-agent
+rm /tmp/happy-agent.sudoers
+sudo visudo -c
+</code></pre>
+<p>With bots that have users of their own, name every target user in the one rule, such as
+<code>(happy-work,happy-guest)</code>. Keep the arguments exactly <code>runner --stdio</code>: listing them makes sudo
+refuse the program with any other arguments, and the daemon never needs another. Do not add a
+group to the run-as list, use <code>ALL</code>, keep environment variables with <code>env_keep</code>, or turn off
+<code>env_reset</code>; the daemon passes only <code>PATH</code>, so provider keys in its environment never reach a
+workload user. Never give a workload user a sudo rule of its own.</p>
+<p>Stop if <code>visudo -cf</code> reports an error; a broken file in <code>/etc/sudoers.d</code> can lock out sudo
+entirely.</p>
+<h2 id="5-configure-the-daemon-and-its-service">5. Configure the daemon and its service<a class="heading-anchor" href="#5-configure-the-daemon-and-its-service" aria-label="Link to 5. Configure the daemon and its service"><span aria-hidden="true">#</span></a></h2>
+<p>Merge the workload user into the service user&#x27;s machine <code>happy.toml</code>, preserving every unrelated
+setting:</p>
+<pre><code class="language-toml">[execution]
+user = &quot;happy-work&quot;
+</code></pre>
+<p><code>executable</code> defaults to the daemon&#x27;s own executable; set it only when that is not the path the
+sudo rule names, for example <code>executable = &quot;/usr/local/bin/happy-agent&quot;</code> when the daemon is
+started through a symbolic link. Give a bot a user of its own by its bot ID:</p>
+<pre><code class="language-toml">[execution.bots.k3x9q2w7e5r1t8y4u6i0o3pa]
+user = &quot;happy-guest&quot;
+</code></pre>
+<p>A project&#x27;s <code>happy.toml</code> cannot set either; only the machine&#x27;s file can.</p>
+<p>Use the deployment recipe&#x27;s systemd unit unchanged — <code>User=happy-agent</code>, <code>UMask=0077</code>, and
+<code>ExecStart=/usr/local/bin/happy-agent run</code>. The runners start inside the service&#x27;s own control
+group, so stopping the service stops them and everything they started. Do <strong>not</strong> add
+<code>NoNewPrivileges=yes</code>, <code>RestrictSUIDSGID=yes</code>, or a <code>CapabilityBoundingSet</code> that drops
+<code>CAP_SETUID</code> and <code>CAP_SETGID</code>: sudo is setuid, and each of those makes every runner fail to start.
+<code>UMask=0077</code> carries through sudo, so files agents create are private to the workload user.</p>
+<p>On Ubuntu 24.04, the <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/permissions-and-sandbox.md#ubuntu-apparmor-host-prerequisite" target="_blank" rel="noreferrer">Ubuntu AppArmor host prerequisite</a>
+is still required. The profile attaches to <code>/usr/local/bin/happy-agent</code> by path, so the same
+profile covers every runner sudo starts from that file; nothing more is needed for the workload
+users.</p>
+<p>Restart the service to apply the change; <code>[execution]</code> is read only at startup:</p>
+<pre><code class="language-sh">sudo systemctl restart happy-agent
+sudo journalctl -u happy-agent -n 100 --no-pager | grep -i &#x27;linux user&#x27;
+</code></pre>
+<p>The log says <code>Agent work for the Linux user happy-work runs in its own runner.</code> A missing sudo
+rule, an unknown user, or a runner that cannot start is logged instead, saying what to fix, and
+the daemon keeps running so the user can still reach it; every piece of work on the node fails
+with the same reason until it is fixed and the service restarted.</p>
+<h2 id="6-give-a-bot-a-linux-user-of-its-own">6. Give a bot a Linux user of its own<a class="heading-anchor" href="#6-give-a-bot-a-linux-user-of-its-own" aria-label="Link to 6. Give a bot a Linux user of its own"><span aria-hidden="true">#</span></a></h2>
+<p>For a bot that other people talk to, or one that should not see the node&#x27;s projects:</p>
+<pre><code class="language-sh">sudo useradd --system --create-home --home-dir /home/happy-guest \
+  --shell /bin/bash happy-guest
+sudo chmod 0700 /home/happy-guest
+</code></pre>
+<p>Add it to the sudo rule&#x27;s run-as list and to <code>[execution.bots.&lt;botId&gt;]</code>, as above. Every agent
+the bot governs — the bot itself, its subtasks and their collaborators, its exported-bot
+conversations, and tasks it opens — runs its files and commands as that user.</p>
+<p>The bot&#x27;s folder was created by the workload user, so grant the bot&#x27;s user that folder and nothing
+else. Install the <code>acl</code> package if <code>setfacl</code> is missing, and use the folder <code>list_bots</code> reports:</p>
+<pre><code class="language-sh">BOT_FOLDER=/home/happy-work/happy/Bots/guest
+sudo setfacl -m u:happy-guest:x /home/happy-work /home/happy-work/happy /home/happy-work/happy/Bots
+sudo setfacl -R -m u:happy-guest:rwX,d:u:happy-guest:rwX,d:u:happy-work:rwX &quot;$BOT_FOLDER&quot;
+</code></pre>
+<p>The traverse permission on the parent folders lets the bot&#x27;s user reach its folder by name, not
+list or read anything beside it, because the workload user&#x27;s files are private under
+<code>UMask=0077</code>. The default entries keep each new file usable by both users.</p>
+<p>Then, through <a href="https://happy.engineering/recepies/bot-settings/">bot settings</a>, keep the bot to its own agents with
+<code>crossWorkspace: false</code>, so every subtask it creates shares its folder. A subtask in a project
+workspace would run as the bot&#x27;s user in a folder that user cannot write, and fail.</p>
+<p>What changes for such a bot:</p>
+<ul>
+<li>Stdio MCP servers run as the workload user and are shared by every agent in a folder, so they
+are not offered to the bot; it sees them as failed, with the reason. HTTP servers still work.</li>
+<li>Terminals and file browsing in its folder, workspace setup, and Git checkouts are the product&#x27;s
+own work and run as the workload user.</li>
+</ul>
+<h2 id="7-limits-that-remain">7. Limits that remain<a class="heading-anchor" href="#7-limits-that-remain" aria-label="Link to 7. Limits that remain"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Attached secrets are refused for commands that run as a workload user, as on runners, because
+their values stay with the daemon. A bot or project that needs secrets in commands cannot use
+this setup yet.</li>
+<li>Live Git state — the changed-file list and branch comparison — is not tracked for folders that
+run as a workload user, exactly as on runners. <code>GET /v0/workspaces/:workspaceId/git</code> answers
+<code>404</code>.</li>
+<li>Docker workspaces and a bot&#x27;s Docker compute are started by the workload user&#x27;s runner, which
+then needs Docker. Membership in the <code>docker</code> group is root-equivalent and undoes this
+separation; say so and get approval before granting it, or leave Docker off on this node.</li>
+</ul>
+<h2 id="8-verify-the-separation">8. Verify the separation<a class="heading-anchor" href="#8-verify-the-separation" aria-label="Link to 8. Verify the separation"><span aria-hidden="true">#</span></a></h2>
+<p>Run these from an operator session, not from a tool of the daemon being checked:</p>
+<pre><code class="language-sh"># The rule allows exactly the runner, as exactly the workload users.
+sudo -l -U happy-agent
+sudo -u happy-agent sudo -n -u root true &amp;&amp; echo &quot;WRONG: root is reachable&quot;
+sudo -u happy-agent sudo -n -u happy-work /bin/sh -c id &amp;&amp; echo &quot;WRONG: a shell is reachable&quot;
+sudo -u happy-work sudo -n true &amp;&amp; echo &quot;WRONG: the workload user has sudo&quot;
+
+# The workload user cannot read the daemon&#x27;s configuration, database, or credentials.
+sudo -u happy-work cat /var/lib/happy-agent/happy/config/happy.toml
+sudo -u happy-work ls /var/lib/happy-agent/.happy/agent
+sudo -u happy-work ls /var/lib/happy-agent/.config/happy-agent/credentials
+
+# The runners run as the workload users, inside the service&#x27;s control group.
+ps -o user,pid,args -u happy-work
+systemctl status happy-agent --no-pager
+</code></pre>
+<p>None of the <code>WRONG</code> lines may print. Each <code>cat</code> and <code>ls</code> must fail with <code>Permission denied</code>.
+<code>ps</code> lists <code>/usr/local/bin/happy-agent runner --stdio</code> as <code>happy-work</code>, and <code>systemctl status</code>
+shows it under the service.</p>
+<p>Then follow <a href="https://happy.engineering/recepies/#testing-a-deployed-node">Testing a deployed node</a> with a temporary project
+registered under <code>/home/happy-work</code>. Have its agent run <code>id -un</code> and <code>pwd</code>: they report
+<code>happy-work</code> and a folder under <code>/home/happy-work</code>. For a bot with a user of its own, send the bot
+a small task that runs <code>id -un</code> in its folder and confirm it reports that user. Archive the
+temporary project afterwards.</p>
+<p>Report each check that passed, and say plainly which were not run.</p></div>

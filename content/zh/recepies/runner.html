@@ -1,0 +1,90 @@
+<div class="document-content"><h1 id="add-a-dedicated-runner">添加专用 Runner<a class="heading-anchor" href="#add-a-dedicated-runner" aria-label="链接到添加专用 Runner"><span aria-hidden="true">#</span></a></h1>
+<p>使用本操作指南，为已经部署的 Happy Agent 节点（独立节点或团队节点）配备一台单独负责执行工作的机器。<strong>强烈建议每个远程节点都采用这种方式。</strong>节点保留数据库、提供商凭据、API 令牌和推理功能；Runner 存放项目文件夹，并运行所有接触这些文件夹的操作：Agent 文件工具和命令、Git、工作区检出、配置命令、终端、文件浏览、预览及 MCP stdio 服务器。这样，即使 Agent 命令出错，或某个依赖运行恶意代码，也只会影响一台没有节点密钥的机器。</p>
+<p>设置说明请阅读<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#runners" target="_blank" rel="noreferrer">配置指南中的 Runners</a>；准确请求格式请查阅已安装发行版的 <code>API.md</code>（源码检出目录中为 <code>packages/happy-agent/API.md</code>）。本指南面向使用 systemd 的全新 Linux Runner 主机。按照<a href="https://happy.engineering/recepies/">操作指南规则</a>从头到尾完成执行；只询问下方仍缺失的选择。</p>
+<h2 id="1-resolve-the-choices">1. 确定各项选择<a class="heading-anchor" href="#1-resolve-the-choices" aria-label="链接到 1. 确定各项选择"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>为哪个节点添加 Runner，由哪台机器及哪个 SSH 账户承载？确认 Runner 主机密钥、操作系统、架构，以及在该主机上安装持久服务的权限。Runner 主机不能与节点位于同一台机器，否则就失去了隔离的意义。</li>
+<li>一个简短的 Runner ID（<code>[a-z][a-z0-9_-]{0,63}</code>，例如 <code>build-box</code>）及易读名称。</li>
+<li>用户的项目需要在 Runner 上安装哪些运行时和包管理器。Git 始终必需。只有容器工作区才需要 Docker（第 7 步）。</li>
+<li>Runner 上提交应使用的 Git 姓名和邮箱——除非用户希望另选身份，否则沿用节点自身 Git 使用的身份。</li>
+</ul>
+<p>Runner 不存放提供商凭据、Happy 数据或 API 令牌。不要把任何这些内容复制过去。仓库令牌也保留在节点上：Runner 上的 Git 通过 Runner 连接访问远程仓库，由节点自行添加令牌。</p>
+<h2 id="2-generate-the-runner-s-token-and-add-it-to-the-node">2. 生成 Runner 令牌并添加到节点<a class="heading-anchor" href="#2-generate-the-runner-s-token-and-add-it-to-the-node" aria-label="链接到 2. 生成 Runner 令牌并添加到节点"><span aria-hidden="true">#</span></a></h2>
+<p>在节点上私密生成新令牌——32 个随机字节，编码为 43 个 base64url 字符——绝不能打印、放入命令参数或复用其他令牌：</p>
+<pre><code class="language-sh">umask 077
+head -c 32 /dev/urandom | base64 | tr &#x27;+/&#x27; &#x27;-_&#x27; | tr -d &#x27;=\n&#x27; &gt; ~/.runner-token-build-box
+</code></pre>
+<p>将 Runner 配置合并到节点的机器级 <code>happy.toml</code> 中，使用 TOML 序列化器从该文件读取并写入令牌，而不是粘贴令牌，同时保留所有无关设置：</p>
+<pre><code class="language-toml">[runners]
+default = &quot;build-box&quot;
+
+[runners.build-box]
+name = &quot;Build box&quot;
+token = &quot;REPLACE_WITH_THE_GENERATED_TOKEN&quot;
+</code></pre>
+<p>只有一个 Runner 时，<code>default</code> 可省略；有多个时，它指定未明确选择 Runner 的新项目、主目录项目以及机器人文件夹所使用的 Runner。每个令牌必须与 <code>[api] token</code>、所有连接令牌以及其他 Runner 的令牌不同。</p>
+<p><strong>一旦配置了任何 Runner，节点就不再在自己的机器上执行任何工作。</strong>注册在节点自身磁盘上的项目仍会列出，以便归档，但其 Agent、终端和文件操作都将拒绝在该机器上工作。重启前告诉用户这一点，并安排在 Runner 上重新注册或克隆这些项目（第 6 步）。按照节点部署指南，先排空正在执行的工作，再重启节点使更改生效；保留节点的 Tailcat 身份和数据。</p>
+<h2 id="3-prepare-the-runner-host">3. 准备 Runner 主机<a class="heading-anchor" href="#3-prepare-the-runner-host" aria-label="链接到 3. 准备 Runner 主机"><span aria-hidden="true">#</span></a></h2>
+<p>安装<strong>与节点相同版本的 Happy Agent</strong>，下载和校验和验证步骤与<a href="https://happy.engineering/recepies/remote-agent/#2-install-the-binary-and-prepare-one-service-account">部署独立远程 Agent</a>相同。使用一个专用的非特权账户，并由它拥有 Runner 的文件夹：</p>
+<pre><code class="language-sh">sudo apt-get update
+sudo apt-get install -y ca-certificates curl git
+sudo useradd --system --create-home --home-dir /var/lib/happy-runner \
+  --shell /bin/bash happy-runner
+sudo chmod 0700 /var/lib/happy-runner
+sudo install -d -m 0700 -o happy-runner -g happy-runner /var/lib/happy-runner/.happy-runner
+</code></pre>
+<p>Agent 命令在 Runner 的沙箱中运行，因此在 Ubuntu 24.04 上，需像为节点配置一样，为 Runner 可执行文件满足 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/permissions-and-sandbox.md#ubuntu-apparmor-host-prerequisite" target="_blank" rel="noreferrer">Ubuntu AppArmor 主机前置条件</a>。为 <code>happy-runner</code> 用户安装项目运行时，并设置其 Git 身份：</p>
+<pre><code class="language-sh">sudo -u happy-runner -H git config --global user.name &quot;CONFIRMED_NAME&quot;
+sudo -u happy-runner -H git config --global user.email &quot;CONFIRMED_EMAIL&quot;
+</code></pre>
+<h2 id="4-give-the-runner-its-token-and-the-node-s-address">4. 为 Runner 提供令牌和节点地址<a class="heading-anchor" href="#4-give-the-runner-its-token-and-the-node-s-address" aria-label="链接到 4. 为 Runner 提供令牌和节点地址"><span aria-hidden="true">#</span></a></h2>
+<p>通过获准的私密路径将令牌传输到 Runner 主机，直接写入令牌文件，随后删除节点上的临时副本：</p>
+<pre><code class="language-sh">sudo install -m 0600 -o happy-runner -g happy-runner /dev/stdin \
+  /var/lib/happy-runner/.happy-runner/token &lt; runner-token-from-the-node
+</code></pre>
+<p>Runner 主动连接节点，不需要入站端口。从节点的私有文件 <code>.happy/agent/tailcat/address</code> 和 <code>tailcat/port</code> 中读取 Tailcat 地址和端口——与主安装的连接所用的值相同——并将端点写入私有环境文件。独立节点和团队节点都通过这种方式访问；如果节点已经可通过私有网络访问，也可改用 <code>https://host</code> 或 <code>http://host:port</code>。</p>
+<pre><code class="language-sh">printf &#x27;HAPPY_RUNNER_ENDPOINT=tailcat:%s:%s\n&#x27; &quot;$NODE_TAILCAT_ADDRESS&quot; &quot;$NODE_TAILCAT_PORT&quot; |
+  sudo install -m 0600 -o happy-runner -g happy-runner /dev/stdin \
+    /var/lib/happy-runner/.happy-runner/endpoint.env
+</code></pre>
+<p>Runner 从令牌文件读取令牌，并从自身环境中移除这两个变量，因此它启动的任何进程都不会继承这些变量，Agent 命令也无法读取它的私有目录。</p>
+<h2 id="5-install-the-runner-service">5. 安装 Runner 服务<a class="heading-anchor" href="#5-install-the-runner-service" aria-label="链接到 5. 安装 Runner 服务"><span aria-hidden="true">#</span></a></h2>
+<p>安装 <code>/etc/systemd/system/happy-runner.service</code>：</p>
+<pre><code class="language-ini">[Unit]
+Description=Happy Agent runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=happy-runner
+Group=happy-runner
+WorkingDirectory=/var/lib/happy-runner
+Environment=HOME=/var/lib/happy-runner
+EnvironmentFile=/var/lib/happy-runner/.happy-runner/endpoint.env
+ExecStart=/usr/local/bin/happy-agent runner
+Restart=always
+RestartSec=5
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<p>令牌和端点不会出现在所有人可读的服务单元文件中。文件夹默认位于 Runner 主目录下，除非通过 <code>--home &lt;directory&gt;</code> 指定其他绝对目录。启动服务，并在有限的等待时限内等待连接：</p>
+<pre><code class="language-sh">sudo systemctl daemon-reload
+sudo systemctl enable --now happy-runner
+sudo journalctl -u happy-runner -n 50 --no-pager
+</code></pre>
+<p>日志会显示 <code>Connected to the daemon.</code>。令牌被拒绝、节点尚未配置 Runner 或端点不可达时，日志会用明确文字说明；Runner 会持续重试，因此应修复原因，而不是循环重启。</p>
+<h2 id="6-verify-from-the-node">6. 从节点验证<a class="heading-anchor" href="#6-verify-from-the-node" aria-label="链接到 6. 从节点验证"><span aria-hidden="true">#</span></a></h2>
+<p>通过用户将要使用的连接：</p>
+<ol>
+<li><code>GET /v0/runners</code> 将 Runner 列为 <code>connected</code>，并显示版本、平台和主目录。主目录项目和机器人文件夹现在应显示 <code>runner</code> 计算类型。</li>
+<li>按照<a href="https://happy.engineering/recepies/#testing-a-deployed-node">测试已部署节点</a>，使用一个<strong>在 Runner 上</strong>注册或克隆的临时项目——传入其 <code>runnerId</code>，或使用默认值。确认项目的计算配置为 <code>{ &quot;type&quot;: &quot;runner&quot; }</code>、Agent 的 shell 返回 Runner 主机名、终端能在该文件夹打开，且文件树能列出它。之后归档该项目。</li>
+<li>用户提出要求时，在 Runner 上重新注册或克隆真实项目。通过节点的仓库凭据进行克隆，可以证明 Git 访问正常，而无须在 Runner 上存放任何令牌。</li>
+</ol>
+<p>停止 Runner 后，其文件夹中的工作会以 <code>runner_unavailable</code> 失败，直到重新连接；任何操作都不会回退到节点执行。</p>
+<h2 id="7-optional-container-workspaces">7. 可选：容器工作区<a class="heading-anchor" href="#7-optional-container-workspaces" aria-label="链接到 7. 可选：容器工作区"><span aria-hidden="true">#</span></a></h2>
+<p>若要在 Runner 的容器中运行项目工作区，在其上安装 Docker，并允许 <code>happy-runner</code> 使用。加入 <code>docker</code> 组等同于拥有该主机的 root 权限；应说明这一点并先取得批准。然后将项目的 <code>defaultWorkspaceCompute</code> 设为 <code>{ &quot;type&quot;: &quot;docker&quot;, &quot;image&quot;: &quot;...&quot; }</code>。每个新工作区的 Agent 工具都会在该镜像的容器内运行，文件夹挂载在相同路径；Git、终端和预览使用 Runner 上的副本。</p>
+<h2 id="more-runners-rotation-and-removal">更多 Runner、令牌轮换与移除<a class="heading-anchor" href="#more-runners-rotation-and-removal" aria-label="链接到更多 Runner、令牌轮换与移除"><span aria-hidden="true">#</span></a></h2>
+<p>可以添加更多具有独立 ID 和令牌的 Runner，并通过 <code>runnerId</code> 为每个项目选择一个。升级节点时一并升级 Runner，确保两者使用同一发行版。轮换令牌时，将新令牌同时写入节点的 <code>happy.toml</code> 和 Runner 的令牌文件，然后重启两者。移除 Runner 时，删除其配置项并重启节点：节点会拒绝其令牌，并要求它停止承载的一切工作。然后在该主机上禁用 <code>happy-runner</code>。</p></div>

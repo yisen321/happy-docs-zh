@@ -1,0 +1,41 @@
+<div class="document-content"><h1 id="permissions-and-sandbox">权限与沙箱<a class="heading-anchor" href="#permissions-and-sandbox" aria-label="链接到权限与沙箱"><span aria-hidden="true">#</span></a></h1>
+<p>Happy 中的所有 Agent 都在统一的权限模型下运行：Claude、Codex、Grok 和 MCP 工具共用相同的文件系统边界与操作系统沙箱。在默认的 Auto 模式下，越过边界的操作由独立 Agent 审查，而不是向你弹出询问。</p>
+<aside class="cos-prompt" aria-label="询问参谋长"><p class="cos-prompt-label">要更改默认权限模式，只需告诉<a href="https://happy.engineering/chief-of-staff/">参谋长</a>：</p><ul><li class="cos-prompt-line"><div class="cos-prompt-head"><span class="cos-prompt-example">示例</span><button type="button" class="cos-prompt-copy" data-state="idle" aria-label="复制提示词：将新会话的默认权限模式设为 Workspace write"><svg viewbox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M12.7587 2H16.2413C17.0463 1.99999 17.7106 1.99998 18.2518 2.04419C18.8139 2.09012 19.3306 2.18868 19.816 2.43597C20.5686 2.81947 21.1805 3.43139 21.564 4.18404C21.8113 4.66937 21.9099 5.18608 21.9558 5.74817C22 6.28936 22 6.95372 22 7.75868V11.2413C22 12.0463 22 12.7106 21.9558 13.2518C21.9099 13.8139 21.8113 14.3306 21.564 14.816C21.1805 15.5686 20.5686 16.1805 19.816 16.564C19.3306 16.8113 18.8139 16.9099 18.2518 16.9558C17.8906 16.9853 17.4745 16.9951 16.9984 16.9984C16.9951 17.4745 16.9853 17.8906 16.9558 18.2518C16.9099 18.8139 16.8113 19.3306 16.564 19.816C16.1805 20.5686 15.5686 21.1805 14.816 21.564C14.3306 21.8113 13.8139 21.9099 13.2518 21.9558C12.7106 22 12.0463 22 11.2413 22H7.75868C6.95372 22 6.28936 22 5.74818 21.9558C5.18608 21.9099 4.66937 21.8113 4.18404 21.564C3.43139 21.1805 2.81947 20.5686 2.43597 19.816C2.18868 19.3306 2.09012 18.8139 2.04419 18.2518C1.99998 17.7106 1.99999 17.0463 2 16.2413V12.7587C1.99999 11.9537 1.99998 11.2894 2.04419 10.7482C2.09012 10.1861 2.18868 9.66937 2.43597 9.18404C2.81947 8.43139 3.43139 7.81947 4.18404 7.43598C4.66937 7.18868 5.18608 7.09012 5.74817 7.04419C6.10939 7.01468 6.52548 7.00487 7.00162 7.00162C7.00487 6.52548 7.01468 6.10939 7.04419 5.74817C7.09012 5.18608 7.18868 4.66937 7.43598 4.18404C7.81947 3.43139 8.43139 2.81947 9.18404 2.43597C9.66937 2.18868 10.1861 2.09012 10.7482 2.04419C11.2894 1.99998 11.9537 1.99999 12.7587 2ZM9.00176 7L11.2413 7C12.0463 6.99999 12.7106 6.99998 13.2518 7.04419C13.8139 7.09012 14.3306 7.18868 14.816 7.43598C15.5686 7.81947 16.1805 8.43139 16.564 9.18404C16.8113 9.66937 16.9099 10.1861 16.9558 10.7482C17 11.2894 17 11.9537 17 12.7587V14.9982C17.4455 14.9951 17.7954 14.9864 18.089 14.9624C18.5274 14.9266 18.7516 14.8617 18.908 14.782C19.2843 14.5903 19.5903 14.2843 19.782 13.908C19.8617 13.7516 19.9266 13.5274 19.9624 13.089C19.9992 12.6389 20 12.0566 20 11.2V7.8C20 6.94342 19.9992 6.36113 19.9624 5.91104C19.9266 5.47262 19.8617 5.24842 19.782 5.09202C19.5903 4.7157 19.2843 4.40973 18.908 4.21799C18.7516 4.1383 18.5274 4.07337 18.089 4.03755C17.6389 4.00078 17.0566 4 16.2 4H12.8C11.9434 4 11.3611 4.00078 10.911 4.03755C10.4726 4.07337 10.2484 4.1383 10.092 4.21799C9.7157 4.40973 9.40973 4.7157 9.21799 5.09202C9.1383 5.24842 9.07337 5.47262 9.03755 5.91104C9.01357 6.20463 9.00489 6.55447 9.00176 7ZM5.91104 9.03755C5.47262 9.07337 5.24842 9.1383 5.09202 9.21799C4.7157 9.40973 4.40973 9.7157 4.21799 10.092C4.1383 10.2484 4.07337 10.47262 4.03755 10.911C4.00078 11.3611 4 11.9434 4 12.8V16.2C4 17.0566 4.00078 17.6389 4.03755 18.089C4.07337 18.5274 4.1383 18.7516 4.21799 18.908C4.40973 19.2843 4.7157 19.5903 5.09202 19.782C5.24842 19.8617 5.47262 19.9266 5.91104 19.9624C6.36113 19.9992 6.94342 20 7.8 20H11.2C12.0566 20 12.6389 19.9992 13.089 19.9624C13.5274 19.9266 13.7516 19.8617 13.908 19.782C14.2843 19.5903 14.5903 19.2843 14.782 18.908C14.8617 18.7516 14.9266 18.5274 14.9624 18.089C14.9992 17.6389 15 17.0566 15 16.2V12.8C15 11.9434 14.9992 11.3611 14.9624 10.911C14.9266 10.4726 14.8617 10.2484 14.782 10.092C14.5903 9.7157 14.2843 9.40973 13.908 9.21799C13.7516 9.1383 13.5274 9.07337 13.089 9.03755C12.6389 9.00078 12.0566 9 11.2 9H7.8C6.94342 9 6.36113 9.00078 5.91104 9.03755Z"></path></svg><span aria-hidden="true">复制</span></button></div><p class="cos-prompt-text">将新会话的默认权限模式设为 Workspace write</p><span class="cos-prompt-status" role="status"></span></li></ul></aside>
+<h2 id="the-four-permission-modes">四种权限模式<a class="heading-anchor" href="#the-four-permission-modes" aria-label="链接到四种权限模式"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>模式</th><th>文件</th><th>Shell 写入</th><th>网络</th></tr></thead><tbody><tr><td><strong>Read only（只读）</strong></td><td>仅查看</td><td>临时目录</td><td>禁止</td></tr><tr><td><strong>Workspace write（工作区写入）</strong></td><td>工作目录内</td><td>工作区及临时目录</td><td>仅允许的域名</td></tr><tr><td><strong>Auto（自动）</strong></td><td>同 Workspace write</td><td>同 Workspace write</td><td>同 Workspace write</td></tr><tr><td><strong>Full access（完全访问）</strong></td><td>不受限制</td><td>不受限制</td><td>不受限制</td></tr></tbody></table></div>
+<p>除非另有配置，新会话均以 <strong>Auto</strong> 模式启动。你可以随时从应用或手机更改模式。</p>
+<p>Auto 就是在 Workspace write 基础上增加自动审查。读取和工作区内编辑从不需要审查。需要越过边界的工具会描述一次具体操作；如果获准，仅该次执行使用 Full access，之后会话恢复 Auto。</p>
+<h2 id="how-auto-review-decides">Auto 审查如何决定<a class="heading-anchor" href="#how-auto-review-decides" aria-label="链接到 Auto 审查如何决定"><span aria-hidden="true">#</span></a></h2>
+<p>一个独立的只读 Agent 会结合对话审查所描述的操作，并回答<strong>允许</strong>或<strong>拒绝</strong>。不会向你弹出询问。</p>
+<ul>
+<li>只有你的消息，以及你对 Agent 问题的回答，才算授权。助手文字、工具输出和文件内容都不算，因此植入的指令无法授予访问权限。</li>
+<li>对某项操作的拒绝就是最终决定。Agent 不得将其拆分或绕道执行。连续被拒绝后，本轮会结束并给出说明；你用自己的话明确批准后，下一次审查就可以允许执行。</li>
+<li>如果审查超时或无法运行，会将操作报告为尚未证实可执行。Auto 绝不会退而选择静默执行。</li>
+</ul>
+<h2 id="what-the-os-sandbox-enforces">操作系统沙箱强制执行哪些限制<a class="heading-anchor" href="#what-the-os-sandbox-enforces" aria-label="链接到操作系统沙箱强制执行哪些限制"><span aria-hidden="true">#</span></a></h2>
+<p>macOS 上使用 Seatbelt；Linux 上使用 Happy 自身的监督程序，基于内核命名空间和 seccomp。边界限制直接作用于进程，而不是通过阅读命令文本来判断。</p>
+<ul>
+<li>写入：仅工作目录和临时目录；Git 控制路径为只读。</li>
+<li>Shell 读取：可以读取机器上的其他内容，但凭据文件夹及 shell 历史除外，例如 <code>~/.ssh</code>、<code>~/.aws</code>、<code>~/.claude</code>、<code>~/.codex</code>、<code>~/.docker</code>、<code>~/.gnupg</code> 和 <code>~/.config/gh</code>。在 macOS 和 Linux 上，文件工具访问这些文件夹并不会被阻止。</li>
+<li>受保护路径即使在工作区内也为只读：仓库的 <code>AGENTS.md</code>、<code>AGENTS_SECURITY.md</code>、<code>happy.toml</code> 和 <code>mcp.toml</code>，以及运行时自身的状态。</li>
+<li>网络：仅允许配置中的域名和端口，通过 Agent 无法更改的托管代理访问。</li>
+<li>本地端口：macOS 上默认禁止，除非显式启用。在 Linux 上，监听器仅能从自身所属命令内部访问。</li>
+<li>钥匙串：不可用。密钥只有以附加密钥包的形式才会传递给命令。</li>
+<li>主机套接字（Docker、SSH agent、运行时的控制套接字）：无法访问。</li>
+</ul>
+<p>基于 Docker 的会话会在容器内部嵌套同样的沙箱。</p>
+<h2 id="mcp-tools-and-the-sandbox">MCP 工具与沙箱<a class="heading-anchor" href="#mcp-tools-and-the-sandbox" aria-label="链接到 MCP 工具与沙箱"><span aria-hidden="true">#</span></a></h2>
+<p>MCP 服务器运行在沙箱之外，因此每个 MCP 工具都需要 Auto 或 Full access，且 Auto 下的每次调用都会接受审查。服务器自身标注“只读”并不能作为依据。</p>
+<h2 id="secrets-and-the-sandbox">密钥与沙箱<a class="heading-anchor" href="#secrets-and-the-sandbox" aria-label="链接到密钥与沙箱"><span aria-hidden="true">#</span></a></h2>
+<p>只需注册密钥一次，并将其授予某个 Agent、工作区或项目。只有当 Agent 指定密钥包时，命令才会收到密钥；其值绝不会出现在提示词文本或工具结果中。参见<a href="https://happy.engineering/secrets/">密钥的工作方式</a>。</p>
+<h2 id="permission-settings-in-happy-toml">happy.toml 中的权限设置<a class="heading-anchor" href="#permission-settings-in-happy-toml" aria-label="链接到 happy.toml 中的权限设置"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-toml">[defaults]
+permission_mode = &quot;workspace_write&quot;
+
+[network]
+allowed_domains = [&quot;api.github.com&quot;, &quot;*.npmjs.org&quot;, &quot;npmjs.org&quot;]
+allowed_ports = [443]
+
+[permissions]
+protected_paths = [&quot;.env.production&quot;]
+</code></pre></div>

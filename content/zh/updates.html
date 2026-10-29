@@ -1,0 +1,18 @@
+<div class="document-content"><h1 id="updates-that-pick-up-where-they-left-off">更新之后，从中断处继续<a class="heading-anchor" href="#updates-that-pick-up-where-they-left-off" aria-label="链接到 更新之后，从中断处继续"><span aria-hidden="true">#</span></a></h1>
+<p>即使智能体正在执行一个回合，你也可以安装 Happy Agent 更新；更新后，这个回合会继续运行。Happy Agent 会让当前步骤完成并保存，然后以新版本重新启动，再从那里继续同一回合。整个过程中，Happy 窗口始终保持打开，不会重新加载。</p>
+<p><video src="https://happy.engineering/video/updates/update.mp4" poster="https://happy.engineering/video/updates/update-poster.webp" controls="" muted="" autoplay="" loop="" playsinline="" aria-label="在回合中途更新 Happy Agent，时长 18 秒，无声音。更新开始时，智能体正在运行 node check.mjs。侧栏卡片显示正在完成工作，提供立即重启按钮，并列出正在等待的智能体。命令完成后，卡片依次显示正在关闭、正在启动、正在重新连接，最终显示已更新，耗时 10 秒。同一回合随后在新版本上运行 node verify.mjs，并以 15 秒内完成结束。"></video></p>
+<p>视频中的智能体回复是按脚本生成的。而在两个已发布的 Happy Agent 版本之间进行的更新，以及重启过程，都是真实的。</p>
+<h2 id="why-an-update-usually-ends-the-session">为什么更新通常会结束会话<a class="heading-anchor" href="#why-an-update-usually-ends-the-session" aria-label="链接到 为什么更新通常会结束会话"><span aria-hidden="true">#</span></a></h2>
+<p>编程智能体运行在长期存活的进程中，而更新会替换这个进程。在许多智能体工具里，这意味着正在执行的工作就此结束：会话停止，你必须手动恢复或重新开始任务。因此，你往往会等到没有任务运行时才更新。</p>
+<h2 id="how-happy-agent-restarts-without-losing-the-turn">Happy Agent 如何在重启时保留回合<a class="heading-anchor" href="#how-happy-agent-restarts-without-losing-the-turn" aria-label="链接到 Happy Agent 如何在重启时保留回合"><span aria-hidden="true">#</span></a></h2>
+<p>Happy Agent 是你机器上负责运行智能体的服务；Happy 窗口则是连接该服务的客户端。Happy Agent 在运行过程中，会将每个回合的消息、工具调用及其结果持续写入 <code>~/.happy/agent</code> 下的 SQLite 数据库。</p>
+<p>更新只替换 Happy Agent 进程，不替换其他内容。Happy Desktop 下载新版本，请求当前运行的 Happy Agent 收尾，停止旧进程，再启动新版本。新进程从数据库读回未完成的回合并继续执行，窗口则重新连接。</p>
+<p><img src="https://happy.engineering/img/updates.svg" alt="Happy Agent 更新会替换什么。桌面窗口始终打开，绝不重新加载。Happy Desktop 的更新器下载新版本，等待旧 Happy Agent 进程收尾，将其停止，再以新 PID 启动新版本。窗口原本连接旧进程，随后重新连接到新进程。旧进程已将回合的每一步保存到 ~/.happy/agent 内的 SQLite 数据库，包括回合、工具调用及结果。新进程读回该回合，从最后保存的步骤开始，在新版本上继续执行。" loading="lazy"></p>
+<h2 id="the-drain-boundary">收尾边界<a class="heading-anchor" href="#the-drain-boundary" aria-label="链接到 收尾边界"><span aria-hidden="true">#</span></a></h2>
+<p>收尾并不是让智能体在重启期间持续工作，而是让当前步骤运行到可以保存的边界：正在运行的工具调用完成并写入结果，进行中的推理也执行完毕。新工作等待执行。随后旧进程退出，下一步在新版本上运行。</p>
+<p><img src="https://happy.engineering/img/updates-drain.svg" alt="视频中更新过程的按比例时间线，从回合开始后的 0 秒到 16 秒。顶部显示卡片的各个阶段：2.2 秒起正在完成工作，5.9 秒正在关闭，6 秒起正在启动，11.7 秒正在重新连接，12.3 秒已更新。桌面窗口全程保持打开。旧 Happy Agent 运行至 6 秒；新进程此时启动，并在 11.7 秒就绪。智能体回合在 0.3 秒至 5.6 秒运行 check.mjs。在 5.9 秒的收尾边界，正在执行的步骤已经完成并保存，旧进程随之退出。回合以保存状态等待，直到 13 秒起在新版本运行 verify.mjs，并在 15 秒内完成。" loading="lazy"></p>
+<p>录屏中，更新开始时正在运行 <code>node check.mjs</code>。Happy Agent 等待不到四秒，该命令便执行完毕；新版本启动并重新连接大约用了六秒。随后，同一个回合运行 <code>node verify.mjs</code>，最终只完成一次：15 秒内完成。</p>
+<h2 id="what-you-see-in-happy-desktop">你在 Happy Desktop 中会看到什么<a class="heading-anchor" href="#what-you-see-in-happy-desktop" aria-label="链接到 你在 Happy Desktop 中会看到什么"><span aria-hidden="true">#</span></a></h2>
+<p>侧栏中的卡片会显示每个阶段：正在完成工作、正在关闭、正在启动、正在重新连接，最后显示已更新及耗时。在等待工作完成期间，卡片会列出正在等待的智能体；点击<strong>立即重启</strong>可跳过等待。这会停止仍在执行的操作：Shell 命令或文件编辑会被记录为已中断，重启后不会再次运行。</p>
+<p>屏幕上的其他内容不会改变。窗口不会重新加载，也不会显示断开连接页面。Happy Agent 停止期间，保存草稿等后台写入操作会暂存，待服务恢复后发送，页面布局也不会跳动。</p>
+<p>有更新就安装吧。更新之后，你的智能体会继续工作。</p></div>

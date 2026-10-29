@@ -1,0 +1,485 @@
+<div class="document-content"><h1 id="deploy-a-standalone-remote-agent">Deploy a standalone remote agent<a class="heading-anchor" href="#deploy-a-standalone-remote-agent" aria-label="Link to Deploy a standalone remote agent"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe when the user wants a personal, non-team Happy Agent on another machine, ready to
+run coding tasks from their existing Happy installation with minimal further setup. The remote is
+an independent daemon with its own projects, agents, profile, and credentials. Do not create a
+Happy team, WorkOS organization, or team login for this deployment.</p>
+<p>Read <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md" target="_blank" rel="noreferrer">configuration</a> and <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/tailcat.md" target="_blank" rel="noreferrer">Tailcat</a> as needed. Use the installed
+release&#x27;s <code>API.md</code> for exact API requests (in the source checkout it is
+<code>packages/happy-agent/API.md</code>). This walkthrough targets a fresh Linux server with systemd;
+adapt the service manager and paths for macOS instead of running Linux commands there.</p>
+<h2 id="automatic-by-default">Automatic by default<a class="heading-anchor" href="#automatic-by-default" aria-label="Link to Automatic by default"><span aria-hidden="true">#</span></a></h2>
+<p>The agent executes this recipe end to end: discover the target and current settings, copy the
+local profile into remote config, provision authorized credentials, install and start the service,
+register the connection, configure Git, and run the completion checks. Do not turn the examples
+into homework for the user. Reuse existing choices and authorized access without asking for each
+step. Ask only when a material choice or authority is missing; pause for unavoidable browser,
+device-login, SSH, or Keychain approval, then continue automatically. Automation never bypasses
+permission review or authorizes transferring an unrelated account&#x27;s credentials.</p>
+<h2 id="1-resolve-the-few-choices-that-matter">1. Resolve the few choices that matter<a class="heading-anchor" href="#1-resolve-the-few-choices-that-matter" aria-label="Link to 1. Resolve the few choices that matter"><span aria-hidden="true">#</span></a></h2>
+<p>Reuse information already supplied by the user. Ask together for anything still missing:</p>
+<ul>
+<li>Which machine and SSH account should be used? Confirm its host key, operating system,
+architecture, and permission to install a persistent service and enable remote access.</li>
+<li>Which provider accounts should the remote use? Explain that copying credentials grants that
+machine access to those accounts and their spending limits. Obtain consent for the specific
+credentials and destination; prefer a fresh remote login or dedicated credentials when possible.</li>
+<li>“Would you like GitHub set up there too? I can install GitHub CLI (<code>gh</code>), authenticate your chosen
+GitHub account, and configure Git to use it.” Confirm the GitHub host, account, and repositories.</li>
+<li>Read the current user&#x27;s effective <code>git config --get user.name</code> and
+<code>git config --get user.email</code> in the intended local repository, or their global values when
+there is no repository. Propose those exact values for the remote: “I&#x27;ll use this Git name and
+email on the remote too; should they be different?” Ask for missing or ambiguous values. Preserve
+a GitHub no-reply email if that is what the user uses; never invent one from their username.</li>
+<li>Reuse the friendly remote name, default provider/model, and initial repository or working
+folder from the request or local setup. Ask only if the choice is missing or ambiguous.</li>
+<li>As an active admin bot on the <strong>local</strong> installation, call <code>get_local_profile</code> with <code>{}</code>. It
+reads the existing name and email directly from local storage, without an API request. Reuse
+those values by default, separately from Git commit identity. Ask only for missing values
+(<code>null</code>) or when the user requests a different remote profile. Never copy a profile database,
+private identity, installation ID, or version to the remote.</li>
+</ul>
+<p>If an existing installation is present, inspect its service, account, config, and projects first.
+Preserve them and merge only the requested settings. Do not replace an existing daemon&#x27;s identity,
+credentials, or data to make these fresh-install examples fit.</p>
+<h3 id="exe-dev-deployment-notes">exe.dev deployment notes<a class="heading-anchor" href="#exe-dev-deployment-notes" aria-label="Link to exe.dev deployment notes"><span aria-hidden="true">#</span></a></h3>
+<p>Prefer SSH with the user&#x27;s existing <code>~/.ssh/id_ed25519</code> key when it is authorized for exe.dev.
+Use the VM address and login user reported by exe.dev; do not invent an SSH hostname or copy the
+private key onto the VM. Verify the host key and use the key explicitly, for example
+<code>ssh -i ~/.ssh/id_ed25519 &lt;confirmed-user&gt;@&lt;confirmed-vm-host&gt;</code>.</p>
+<p>The default exe.dev bearer token can create and list VMs, but cannot SSH, delete VMs, or add SSH
+keys. Successful VM creation therefore does not prove that bootstrap access exists. If SSH is not
+authorized, ask the user to arrange the required access; do not retry privileged operations with
+that token or treat it as a Happy Agent credential.</p>
+<p>When SSH is available, avoid exe.dev first-boot scripts. They run once as <code>exedev</code>, not as the
+<code>happy-agent</code> service user, and quoting newlines inside an HTTPS payload is easy to get wrong.
+Use inspected, repeatable SSH steps instead. For the standard x86-64 exe.dev VM use the
+<code>linux-x64</code> archive, still checking <code>uname -m</code> first. Use the service user&#x27;s actual Linux
+<code>happy/config</code> directory below, not a path copied from an older deployment.</p>
+<h2 id="2-install-the-binary-and-prepare-one-service-account">2. Install the binary and prepare one service account<a class="heading-anchor" href="#2-install-the-binary-and-prepare-one-service-account" aria-label="Link to 2. Install the binary and prepare one service account"><span aria-hidden="true">#</span></a></h2>
+<p>Use a dedicated unprivileged account, here <code>happy-agent</code>, with home <code>/var/lib/happy-agent</code>. The
+daemon, provider credentials, Git config, GitHub login, and repositories must all belong to that
+account—not root or the SSH operator. On a fresh Debian/Ubuntu host:</p>
+<pre><code class="language-sh">sudo apt-get update
+sudo apt-get install -y ca-certificates curl git jq tar
+sudo useradd --system --create-home --home-dir /var/lib/happy-agent \
+  --shell /bin/bash happy-agent
+sudo chmod 0700 /var/lib/happy-agent
+sudo install -d -m 0700 -o happy-agent -g happy-agent \
+  /var/lib/happy-agent/happy/config \
+  /var/lib/happy-agent/.happy \
+  /var/lib/happy-agent/.config/happy-agent/credentials \
+  /var/lib/happy-agent/projects
+</code></pre>
+<p>When this node runs its own agent work rather than a <a href="https://happy.engineering/recepies/runner/">dedicated runner</a>, offer to
+<a href="https://happy.engineering/recepies/hardening/">harden it with separate Linux users</a> as well: agent commands then run as a
+workload user that cannot read this account&#x27;s configuration, database, or credentials. Decide
+before the daemon first starts, because that recipe places every project and workspace folder in
+the workload user&#x27;s home and installs the binary root-owned in <code>/usr/local/bin</code>.</p>
+<p>Unless the user pinned a version, resolve the latest stable Happy Agent release from GitHub at
+deployment time. Filter for Happy Agent&#x27;s <code>v&lt;version&gt;</code> tags, not library releases;
+do not reuse a version remembered from a previous deployment. Match <code>uname -m</code> to <code>linux-x64</code> or
+<code>linux-arm64</code>. Download in a fresh temporary directory, verify the published checksum, and install:</p>
+<pre><code class="language-sh">set -eu
+DEPLOY_DOWNLOAD_DIR=&quot;$(mktemp -d)&quot;
+cd &quot;$DEPLOY_DOWNLOAD_DIR&quot;
+DEPLOY_TAG=&quot;$(curl -fsSL &#x27;https://api.github.com/repos/slopus/happy-agent/releases?per_page=100&#x27; |
+  jq -er &#x27;[.[] | select(.draft == false and .prerelease == false) |
+    select(.tag_name | test(&quot;^v[0-9]+\\.[0-9]+\\.[0-9]+$&quot;))][0].tag_name // error(&quot;No stable Happy Agent release found&quot;)&#x27;)&quot;
+DEPLOY_VERSION=&quot;${DEPLOY_TAG#v}&quot;
+case &quot;$(uname -m)&quot; in
+  x86_64) DEPLOY_TARGET=&quot;linux-x64&quot; ;;
+  aarch64|arm64) DEPLOY_TARGET=&quot;linux-arm64&quot; ;;
+  *) echo &quot;Unsupported Linux architecture; choose a supported release target.&quot; &gt;&amp;2; exit 1 ;;
+esac
+DEPLOY_ARCHIVE=&quot;happy-agent-$DEPLOY_VERSION-$DEPLOY_TARGET.tar.gz&quot;
+DEPLOY_RELEASE_URL=&quot;https://github.com/slopus/happy-agent/releases/download/v$DEPLOY_VERSION&quot;
+curl -fLO &quot;$DEPLOY_RELEASE_URL/$DEPLOY_ARCHIVE&quot;
+curl -fLO &quot;$DEPLOY_RELEASE_URL/$DEPLOY_ARCHIVE.sha256&quot;
+sha256sum --check &quot;$DEPLOY_ARCHIVE.sha256&quot;
+tar -xzf &quot;$DEPLOY_ARCHIVE&quot;
+sudo install -m 0755 &quot;happy-agent-$DEPLOY_TARGET&quot; /usr/local/bin/happy-agent
+/usr/local/bin/happy-agent --version
+</code></pre>
+<p>Stop on download or checksum failure. The release binary is self-contained and embeds the Tailcat
+server; a source checkout, Node.js, and a separate Tailcat server installation are unnecessary.
+Install repository-specific runtimes/package managers only as required by the initial project.
+For macOS use the matching <code>darwin-*</code> asset, <code>shasum -a 256 -c</code>, the chosen user&#x27;s
+<code>~/Happy/Config/happy.toml</code>, and a persistent launchd service under that user.</p>
+<p>If the GitHub query is rate-limited or its page contains no Happy Agent release, resolve the
+remaining pages or the release through an authorized GitHub client; do not guess a version. Record
+the chosen version for the handoff. Before first startup, verify that
+<code>/var/lib/happy-agent/.happy</code> belongs to <code>happy-agent</code>, particularly if an earlier root-owned
+bootstrap created it. On an existing installation inspect ownership before making a scoped repair;
+never recursively change unrelated directories or follow unverified symlinks.</p>
+<h3 id="ubuntu-namespace-permissions">Ubuntu namespace permissions<a class="heading-anchor" href="#ubuntu-namespace-permissions" aria-label="Link to Ubuntu namespace permissions"><span aria-hidden="true">#</span></a></h3>
+<p>Before first startup on Ubuntu 24.04, check the host&#x27;s AppArmor namespace restriction and follow
+the <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/permissions-and-sandbox.md#ubuntu-apparmor-host-prerequisite" target="_blank" rel="noreferrer">Ubuntu AppArmor host prerequisite</a>.
+Obtain approval for the application-specific <code>userns</code> grant to the trusted, root-owned daemon
+executable. Preserve an existing confinement profile; do not disable the system-wide restriction,
+grant service capabilities, or switch Auto to Full access. If this host-policy change is not
+authorized, report sandbox startup as blocked rather than claiming deployment is complete.</p>
+<h2 id="3-provision-only-the-selected-provider-credentials">3. Provision only the selected provider credentials<a class="heading-anchor" href="#3-provision-only-the-selected-provider-credentials" aria-label="Link to 3. Provision only the selected provider credentials"><span aria-hidden="true">#</span></a></h2>
+<p>Never print auth files or tokens, paste them into chat, include them in command arguments, put them
+in Git, or enable shell tracing while handling them. Use the available reviewed secret mechanism
+or a direct encrypted SSH/SCP transfer. If authorization or safe access is unavailable, have the
+user perform that private step. Do not bypass keychain or permission restrictions.</p>
+<p>For a file transfer, create a private staging directory on the destination with <code>mktemp -d</code>, use
+its exact returned path for <code>scp</code> from the authorized local auth file, then install the file as
+the service account. For example, after transferring to the private staging path:</p>
+<pre><code class="language-sh">sudo install -m 0600 -o happy-agent -g happy-agent \
+  /EXACT_PRIVATE_STAGING_PATH/auth.json \
+  /var/lib/happy-agent/.config/happy-agent/credentials/codex.json
+</code></pre>
+<p>Replace the staging path and destination for each selected vendor. Remove only the exact staged
+credential copies after verifying the installed files. Credential files and config must be mode
+<code>0600</code>, with private parent directories mode <code>0700</code>. Codex and Grok refresh credentials in place,
+so both their file and its parent directory must be writable by the service account. Do not copy
+an entire home directory or unrelated accounts. Duplicated OAuth sessions may interfere through
+refresh-token rotation; if copying destabilizes either machine, sign in separately on the remote.</p>
+<p>Write the provider sections below into the <strong>remote machine&#x27;s</strong>
+<code>/var/lib/happy-agent/happy/config/happy.toml</code>. Use absolute remote paths, not the source machine&#x27;s
+paths. Examples containing <code>REPLACE_...</code> are templates, not usable credentials. Populate secrets
+through a private editor/secret provisioner, not a model-visible patch or shell command literal.
+Do not assume TOML expands environment variables inside strings.</p>
+<h3 id="openai-codex">OpenAI / Codex<a class="heading-anchor" href="#openai-codex" aria-label="Link to OpenAI / Codex"><span aria-hidden="true">#</span></a></h3>
+<p>Sign in with <code>codex login</code> through the first-party CLI. Its normal file is <code>~/.codex/auth.json</code>, or <code>auth.json</code>
+inside the user&#x27;s configured <code>CODEX_HOME</code>. Copy the entire file—including session/refresh data and
+account identity—to the remote credential path. Do not extract only the access token. A keychain-only
+login is not a portable file: use Codex&#x27;s supported file-backed login or sign in on the remote;
+never copy the OS keychain. Consult the installed Codex CLI&#x27;s help for its supported login flow.</p>
+<pre><code class="language-toml">[providers.codex]
+enabled = true
+auth_file = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/codex.json&quot;
+transport = &quot;auto&quot;
+</code></pre>
+<p>For a user-selected OpenAI API key instead of a Codex subscription login, use <code>api_key</code> in this
+section, populated privately, and omit <code>auth_file</code>. API billing and available models may differ.
+Do not silently switch subscription authentication to a paid API key.</p>
+<h3 id="anthropic-claude-code">Anthropic / Claude Code<a class="heading-anchor" href="#anthropic-claude-code" aria-label="Link to Anthropic / Claude Code"><span aria-hidden="true">#</span></a></h3>
+<p>For a headless remote, prefer an already available long-lived setup token for the authorized
+account. Otherwise the agent can extract the current Keychain token automatically as described
+below, with the stated expiry limitation. When a new long-lived token is needed, run
+<code>claude setup-token</code> as the intended signed-in user and involve them only for the private login
+interaction. Transfer the resulting token privately and write it into the remote config:</p>
+<pre><code class="language-toml">[providers.claude]
+enabled = true
+oauth_token = &quot;REPLACE_WITH_PRIVATE_SETUP_TOKEN&quot;
+</code></pre>
+<p>Alternatively, if the source has a file-backed Claude login, copy
+<code>~/.claude/.credentials.json</code> (or the file inside <code>CLAUDE_CONFIG_DIR</code>) to a private remote directory
+as <code>.credentials.json</code>. Configure the <strong>directory</strong>, not the file, and omit <code>oauth_token</code>:</p>
+<pre><code class="language-toml">[providers.claude]
+enabled = true
+config_dir = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/claude&quot;
+</code></pre>
+<h4>Read an existing macOS Keychain token directly</h4>
+<p>Claude normally stores its OAuth credentials in the login keychain; copying <code>~/.claude</code> alone
+does not copy that login. With authorization to transfer this account to the chosen remote, the
+agent can extract the current token automatically. Run as the signed-in local user, not root.
+Use reviewed host access when the shell sandbox cannot access Keychain; never work around a
+denial. Any macOS approval prompt belongs to the user.</p>
+<p>For the default Claude configuration, this Bash snippet reads the <code>Claude Code-credentials</code>
+generic-password entry and extracts only <code>claudeAiOauth.accessToken</code> into a private file. It
+deliberately prints neither the JSON credentials nor the token:</p>
+<pre><code class="language-bash">set -euo pipefail
+umask 077
+CLAUDE_TOKEN_DIR=&quot;$(mktemp -d)&quot;
+/usr/bin/security find-generic-password \
+  -a &quot;$(id -un)&quot; -s &quot;Claude Code-credentials&quot; -w |
+  jq -er &#x27;.claudeAiOauth.accessToken | select(type == &quot;string&quot; and length &gt; 0)&#x27; \
+  &gt; &quot;$CLAUDE_TOKEN_DIR/oauth-token&quot;
+test -s &quot;$CLAUDE_TOKEN_DIR/oauth-token&quot;
+</code></pre>
+<p>Do not run the <code>security ... -w</code> command alone, use shell tracing, or read that file into tool
+output. Stop if lookup or extraction fails. Keep the exact temporary path for the encrypted
+transfer, then privately load the file&#x27;s contents into the remote <code>[providers.claude] oauth_token</code>
+using a TOML-aware provisioner. The setting takes the token value, not its file path. Do not put
+the secret in command arguments or a model-visible patch. Verify authentication, then remove
+only the exact staged token files on both machines.</p>
+<p>For a custom Claude environment, select its actual Keychain entry instead of guessing accounts:
+when <code>CLAUDE_CONFIG_DIR</code> is set, append <code>-</code> plus the first eight lowercase hex characters of the
+SHA-256 of the effective directory string. When <code>CLAUDE_CODE_CUSTOM_OAUTH_URL</code> is set, insert
+<code>-custom-oauth</code> after <code>Claude Code</code>. The resulting service name is
+<code>Claude Code[-custom-oauth]-credentials[-&lt;directory-hash&gt;]</code>. Use the account that owns that login;
+the normal account is the local username. These rules match Happy&#x27;s Claude credential lookup.</p>
+<p>This is the current <strong>access token</strong>, not a newly issued long-lived setup token. Happy&#x27;s static
+<code>oauth_token</code> setting does not refresh it from the local Mac, and copying <code>.credentials.json</code>
+does not give Happy a Claude refresh workflow either. Check its expiry privately if present as
+<code>claudeAiOauth.expiresAt</code>; a successful verification now does not guarantee unattended operation
+later. For durable unattended use, prefer an already available long-lived setup token, or arrange
+<code>claude setup-token</code>/fresh remote login when renewal is needed. Perform all noninteractive work
+automatically and ask only for the login interaction itself. Explain the renewal requirement in
+the handoff; neither token is permanent or immune to revocation.</p>
+<p>For a user-selected Anthropic API key, use <code>api_key</code> instead, with the same private handling and
+explicit billing consent. Choose one authentication method, not several competing overrides.</p>
+<h3 id="xai-grok">xAI / Grok<a class="heading-anchor" href="#xai-grok" aria-label="Link to xAI / Grok"><span aria-hidden="true">#</span></a></h3>
+<p>Run <code>grok login</code> through the first-party CLI for the intended account. Securely copy the whole
+<code>~/.grok/auth.json</code>, or <code>$GROK_HOME/auth.json</code> when configured, to the remote. Keep all scoped
+records and refresh metadata intact:</p>
+<pre><code class="language-toml">[providers.grok]
+enabled = true
+auth_file = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/grok.json&quot;
+</code></pre>
+<p>Grok refreshes its session and atomically rewrites this file. For an explicitly chosen xAI API
+key, use <code>api_key</code> instead of <code>auth_file</code>; verify the desired model is available with that key.</p>
+<h3 id="amazon-bedrock">Amazon Bedrock<a class="heading-anchor" href="#amazon-bedrock" aria-label="Link to Amazon Bedrock"><span aria-hidden="true">#</span></a></h3>
+<p>Prefer a least-privilege instance/task role when the host runs on AWS; there is then no local
+secret to copy. Otherwise choose either a Bedrock bearer key or a supported AWS credential chain.
+For a bearer key, privately populate:</p>
+<pre><code class="language-toml">[providers.bedrock]
+enabled = true
+region = &quot;us-east-1&quot;
+bearer_token = &quot;REPLACE_WITH_PRIVATE_BEDROCK_KEY&quot;
+</code></pre>
+<p>Alternatively use <code>bearer_token_env_var = &quot;AWS_BEARER_TOKEN_BEDROCK&quot;</code> and place the value in the
+service&#x27;s private environment file in step 5; omit <code>bearer_token</code>. An export in an SSH session is
+not inherited by systemd.</p>
+<p>For an AWS profile, transfer only the authorized profile&#x27;s settings and credentials from
+<code>~/.aws/config</code> and <code>~/.aws/credentials</code>, preserving their AWS format. Install them in private files
+and select them explicitly:</p>
+<pre><code class="language-toml">[providers.bedrock]
+enabled = true
+region = &quot;us-east-1&quot;
+profile = &quot;remote-bedrock&quot;
+config_file = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/aws-config&quot;
+credentials_file = &quot;/var/lib/happy-agent/.config/happy-agent/credentials/aws-credentials&quot;
+</code></pre>
+<p>The config section is <code>[profile remote-bedrock]</code>; the credentials section is <code>[remote-bedrock]</code>.
+Temporary credentials also need their session token. Copying expiring credentials or an SSO cache
+is not durable authentication: complete the supported AWS login on the remote or install and
+configure its <code>credential_process</code> helper as the service user. Ensure the helper is executable
+noninteractively and can refresh there. Select a region and models the account can actually use.</p>
+<h3 id="optional-gemini-tools">Optional Gemini tools<a class="heading-anchor" href="#optional-gemini-tools" aria-label="Link to Optional Gemini tools"><span aria-hidden="true">#</span></a></h3>
+<p>If the user wants Gemini media/search tools, privately copy their selected key into
+<code>[gemini] api_key</code>, or set <code>GEMINI_API_KEY</code> in the daemon&#x27;s environment file. Gemini is not a chat
+provider entry. Do not copy extra credentials merely because they exist locally.</p>
+<h2 id="4-finish-remote-configuration">4. Finish remote configuration<a class="heading-anchor" href="#4-finish-remote-configuration" aria-label="Link to 4. Finish remote configuration"><span aria-hidden="true">#</span></a></h2>
+<p>Combine these settings with the selected provider sections in the remote <code>happy.toml</code>:</p>
+<pre><code class="language-toml">[providers]
+default_enable = false
+
+[profile]
+name = &quot;REPLACE_WITH_LOCAL_PROFILE_NAME&quot;
+email = &quot;REPLACE_WITH_LOCAL_PROFILE_EMAIL&quot;
+
+[feature.team]
+enabled = false
+
+[api]
+token = &quot;REPLACE_WITH_FRESH_43_CHARACTER_BASE64URL_TOKEN&quot;
+
+[feature.tailcat]
+enabled = true
+port = 24779
+
+[defaults]
+provider = &quot;codex&quot;
+model = &quot;REPLACE_WITH_AVAILABLE_MODEL_ID&quot;
+permission_mode = &quot;auto&quot;
+</code></pre>
+<p>Replace the default provider and model with an available pair chosen by the user. Keep only
+providers whose authentication you provisioned enabled. Auto reviews actions; never choose Full
+access simply to make bootstrap checks pass. Keep each TOML table unique when merging snippets.</p>
+<p>Write both <code>[profile]</code> fields from <code>get_local_profile</code> into this global configuration <strong>before
+first startup</strong>, escaping them with a TOML serializer. Startup creates the remote&#x27;s own profile
+and fills missing name/email fields from these records. This satisfies the profile part of
+onboarding without a profile-creation screen or an HTTP profile mutation. There is no
+<code>skip_profile</code> flag: do not bypass the requirement with an empty profile. Other onboarding checks,
+including provider credentials and a project, still apply. Later profile edits are preserved on
+restart; config only fills fields that are still missing. Project config cannot set these values,
+and team deployments reject a shared <code>[profile]</code> section. Use a release supporting these settings;
+if the selected older release lacks them, report the needed upgrade instead of silently falling
+back to a profile API call.</p>
+<p>For a fresh remote deployment, securely generate 32 random bytes encoded without padding as
+43 base64url characters and privately write that fresh value under <code>[api] token</code>. This gives the
+remote and its primary connection one explicit credential from the start. Never reuse an exe.dev
+token, provider credential, or another installation&#x27;s token. Preserve an existing installation&#x27;s
+token during upgrades. Without an explicit setting the daemon can generate a token itself, but
+this deployment recipe deliberately provisions one and uses that exact value for registration.</p>
+<p>Tailcat is account-free encrypted connectivity, not authentication. Anyone who learns its address
+can reach the API authentication boundary; the bearer token grants standalone daemon access.
+Keep both private and obtain consent to enable this exposure. No public unauthenticated HTTP
+listener, WorkOS configuration, or Tailscale account is needed.</p>
+<h2 id="5-install-a-restart-safe-service">5. Install a restart-safe service<a class="heading-anchor" href="#5-install-a-restart-safe-service" aria-label="Link to 5. Install a restart-safe service"><span aria-hidden="true">#</span></a></h2>
+<p>Install <code>/etc/systemd/system/happy-agent.service</code>:</p>
+<pre><code class="language-ini">[Unit]
+Description=Happy Agent (standalone)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=happy-agent
+Group=happy-agent
+WorkingDirectory=/var/lib/happy-agent
+Environment=HOME=/var/lib/happy-agent
+EnvironmentFile=-/var/lib/happy-agent/.config/happy-agent/service.env
+ExecStart=/usr/local/bin/happy-agent run
+Restart=on-failure
+RestartSec=2
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<p>If any credential uses an environment variable, create <code>service.env</code> privately with <code>NAME=value</code>
+entries, no <code>export</code>, and correct systemd quoting. Set owner <code>happy-agent</code>, mode <code>0600</code>; do not put
+secrets in the world-readable unit. Include required credential helpers/runtimes in the service&#x27;s
+PATH using explicit paths. Avoid competing provider variables left over from another installation.</p>
+<pre><code class="language-sh">sudo chown happy-agent:happy-agent /var/lib/happy-agent/happy/config/happy.toml
+sudo chmod 0600 /var/lib/happy-agent/happy/config/happy.toml
+sudo systemctl daemon-reload
+sudo systemctl enable --now happy-agent
+sudo systemctl is-active happy-agent
+</code></pre>
+<p>Wait with a bounded deadline for authenticated <code>/v0/health</code> to report readiness, not just for the
+process to exist. The default local socket is <code>/var/lib/happy-agent/.happy/agent/server.sock</code>; the
+token is <code>/var/lib/happy-agent/.happy/agent/token</code>. Use a protected client/header file or the client
+SDK so the token never appears in process arguments or tool output. On failure inspect a bounded,
+redacted log excerpt; do not dump credential-bearing config. Keep systemd as the service owner—do
+not also launch a second daemon with <code>happy-agent start</code>.</p>
+<h3 id="graceful-maintenance-after-deployment">Graceful maintenance after deployment<a class="heading-anchor" href="#graceful-maintenance-after-deployment" aria-label="Link to Graceful maintenance after deployment"><span aria-hidden="true">#</span></a></h3>
+<p>For upgrades or a planned maintenance stop, use an independent SSH/operator session, not a tool
+owned by the daemon you are stopping:</p>
+<pre><code class="language-sh">sudo -u happy-agent -H /usr/local/bin/happy-agent drain &amp;&amp;
+sudo systemctl stop happy-agent
+</code></pre>
+<p>On a release supporting signal-based draining, the first command uses <code>SIGUSR2</code> and private local
+status—no API, provider, or WorkOS tokens. It waits for admitted agent work to reach a safe durable
+boundary and reports completion, while leaving the daemon running in read-only drain mode. New
+work is rejected; pending work stays persisted. Repeating drain is safe. If the command fails,
+stop and inspect the cause rather than continuing with maintenance.</p>
+<p>The second command requests graceful shutdown with <code>SIGTERM</code>. Named cleanup handlers close the
+runtime&#x27;s services and processes, database connections, and API transports before the daemon exits.
+Wait for that exit before backing up or replacing files. Sending <code>SIGTERM</code> alone does not first
+drain active inference. Draining also does not wait for arbitrary terminal/background jobs to
+finish, so arrange those separately; forced termination is not a graceful shutdown.</p>
+<p><code>happy-agent drain</code> checks the live daemon&#x27;s signal support and process identity. Do not send raw
+<code>SIGUSR2</code> to an older release, where it could terminate the process. Keep the same service user
+and any <code>HAPPY_HOME_DIR</code> override. See the <a href="https://happy.engineering/recepies/upgrade/">upgrade recipe</a> for direct
+signal use, older-release handling, backups, shutdown progress, and recovery.</p>
+<h3 id="strongly-recommended-a-dedicated-runner">Strongly recommended: a dedicated runner<a class="heading-anchor" href="#strongly-recommended-a-dedicated-runner" aria-label="Link to Strongly recommended: a dedicated runner"><span aria-hidden="true">#</span></a></h3>
+<p>Once the node is healthy, recommend <a href="https://happy.engineering/recepies/runner/">adding a dedicated runner</a> and do it when the
+user agrees: a second machine then runs agent commands, Git, terminals, and project folders, while
+this node keeps its database, provider credentials, and token. Do it before registering the
+initial project in step 7, so that project is cloned on the runner from the start; the runner
+dials this node&#x27;s Tailcat exposure, so it needs no inbound port.</p>
+<h2 id="6-connect-the-primary-installation">6. Connect the primary installation<a class="heading-anchor" href="#6-connect-the-primary-installation" aria-label="Link to 6. Connect the primary installation"><span aria-hidden="true">#</span></a></h2>
+<p>Wait up to 90 seconds for the remote&#x27;s private <code>.happy/agent/tailcat/address</code> and <code>tailcat/port</code>
+files. Both must be present and the service must remain healthy. Securely transfer the address,
+port, and daemon token to the primary machine. Never copy the Tailcat private identity key.</p>
+<p>On the primary, have the active Chief of Staff/admin bot register these exact values with
+<code>set_remote_connection</code>. Its input shape is:</p>
+<pre><code class="language-json">{
+    &quot;id&quot;: &quot;personal-server&quot;,
+    &quot;connection&quot;: {
+        &quot;name&quot;: &quot;Personal server&quot;,
+        &quot;address&quot;: &quot;REPLACE_WITH_EXACT_TAILCAT_ADDRESS&quot;,
+        &quot;port&quot;: 24779,
+        &quot;token&quot;: &quot;REPLACE_WITH_REMOTE_API_TOKEN&quot;
+    }
+}
+</code></pre>
+<p>Use the approved private credential-provisioning path for the token; never repeat it in chat,
+logs, or the handoff. The tool registers an existing remote; it does not deploy the VM. It writes
+the primary&#x27;s generated runtime configuration and takes effect without restarting the primary.
+Then call <code>check_remote_connection_health</code> with <code>{ &quot;id&quot;: &quot;personal-server&quot; }</code> and require
+<code>reachable</code>, <code>authenticated</code>, and <code>ready</code> to <strong>all</strong> be <code>true</code>. These are separate checks: a
+reachable endpoint can reject authentication, and an authenticated daemon may still be starting.
+This proves connectivity, not provider inference; verify provider credentials separately in step 8.</p>
+<p>If no active admin bot or safe tool credential path is available, the manual alternative is the
+<strong>primary machine&#x27;s</strong> global <code>happy.toml</code> (not the remote&#x27;s and not a repository):</p>
+<pre><code class="language-toml">[connections.personal-server]
+name = &quot;Personal server&quot;
+address = &quot;REPLACE_WITH_EXACT_TAILCAT_ADDRESS&quot;
+port = 24779
+token = &quot;REPLACE_WITH_REMOTE_DAEMON_TOKEN&quot;
+</code></pre>
+<p>Use the exact case-sensitive address blob, not a <code>tailcat://</code> URL, and the actual configured port.
+Use an unused connection ID and restrict this configuration file to its owner. Do not add
+<code>workos_organization_id</code> to a standalone connection. Restart the primary daemon to apply the file
+change, coordinating with ongoing work. Live connection overrides reside in generated
+<code>runtime.toml</code> and take precedence
+over global entries; resolve an existing override instead of appending a competing setting.</p>
+<p>Verify through the primary&#x27;s authenticated API: <code>GET /v0/connections</code> lists the remote, and
+<code>GET /v0/connections/personal-server/api/v0/health</code> reaches the remote and reports readiness. The
+primary credential authenticates to the primary; its connection layer supplies the remote token.
+The bundled transport handles this connection without a separate client-side login. A manual
+Tailcat client needs its own v0.7.0 executable; see <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/tailcat.md" target="_blank" rel="noreferrer">Tailcat</a>.</p>
+<p>If health returns 401, check the remote token; if unavailable, check Tailcat state, outbound
+connectivity, and the exact address/port. Do not disable authentication to troubleshoot. Preserve
+the remote&#x27;s <code>.happy/agent</code> state across upgrades so its data, token, and Tailcat identity survive.</p>
+<h2 id="7-set-git-identity-and-if-requested-github-authentication">7. Set Git identity and, if requested, GitHub authentication<a class="heading-anchor" href="#7-set-git-identity-and-if-requested-github-authentication" aria-label="Link to 7. Set Git identity and, if requested, GitHub authentication"><span aria-hidden="true">#</span></a></h2>
+<p>Always set the agreed Git identity for the <strong>service user</strong>, even when GitHub setup was declined:</p>
+<pre><code class="language-sh">sudo -u happy-agent -H git config --global user.name &quot;CONFIRMED_NAME&quot;
+sudo -u happy-agent -H git config --global user.email &quot;CONFIRMED_EMAIL&quot;
+</code></pre>
+<p>If the user accepted GitHub setup, install <code>gh</code> from GitHub CLI&#x27;s official instructions or a trusted
+distribution package (<code>sudo apt-get install -y gh</code> on Debian/Ubuntu when available), then verify
+<code>gh --version</code>. Authenticate as <code>happy-agent</code>, not root:</p>
+<pre><code class="language-sh">sudo -u happy-agent -H gh auth login --hostname github.com --git-protocol https --web
+sudo -u happy-agent -H gh auth setup-git --hostname github.com
+sudo -u happy-agent -H gh api user --jq .login
+</code></pre>
+<p>For a headless login the user completes the browser/device step on their own machine. Use their
+confirmed GitHub Enterprise host instead when applicable. Request only the access needed for the
+chosen repositories, including organization SSO authorization when required. Without a keyring,
+<code>gh</code> may store its token in <code>~/.config/gh/hosts.yml</code>; keep it owner-only in a private directory.</p>
+<p>If the user specifically prefers copying an existing GitHub token, transfer it privately into
+<code>gh auth login --hostname github.com --git-protocol https --with-token</code> on stdin as the service
+user, then run <code>gh auth setup-git</code>. Never run <code>gh auth token</code> into model-visible output, put a token
+in a Git URL, or copy unrelated GitHub accounts. A narrowly scoped token may not support every
+<code>gh</code> operation; verify the required ones. Merely setting <code>GH_TOKEN</code> does not prove a durable Git
+credential-helper setup. Test without relying on the SSH operator&#x27;s environment.</p>
+<p>Clone the agreed repository over HTTPS into <code>/var/lib/happy-agent/projects</code> as the service user,
+or create the agreed local working folder if no repository was requested. Register it as a project
+on the <strong>remote</strong> using Happy or the documented project API. With a runner, clone or register it
+through the remote&#x27;s project API on the runner instead; the Git identity checks below then run as
+the runner&#x27;s service user. Check in that repository:</p>
+<ul>
+<li><code>git config --get user.name</code> and <code>git config --get user.email</code> match the agreed identity;</li>
+<li><code>git var GIT_AUTHOR_IDENT</code> resolves correctly;</li>
+<li><code>git ls-remote origin</code> works noninteractively, if a remote was configured;</li>
+<li>the GitHub account and repository permissions match what the user requested.</li>
+</ul>
+<p>Existing repository-local identity overrides win over global values; ask before changing an
+intentional override. Git author identity and GitHub authentication are separate. A read test
+does not prove write permission; inspect the granted repository permissions and disclose anything
+untested. Do not push a test commit without explicit authorization. If GitHub was declined, do not
+install its CLI or copy its credentials; explain any resulting private-repository limitation.</p>
+<h2 id="8-prove-it-is-ready-and-hand-it-over">8. Prove it is ready and hand it over<a class="heading-anchor" href="#8-prove-it-is-ready-and-hand-it-over" aria-label="Link to 8. Prove it is ready and hand it over"><span aria-hidden="true">#</span></a></h2>
+<p>Perform checks against the <strong>remote</strong>, through the connection the user will actually use:</p>
+<ol>
+<li>Verify each selected provider with <code>POST /v0/providers/:providerId/verify</code> and
+<code>{ &quot;level&quot;: &quot;inference&quot; }</code>. These checks can incur small provider charges. Require
+<code>status: &quot;passed&quot;</code>; HTTP 200 alone also covers verification failure. Inspect the remote model
+catalog through <code>GET /v0/config</code> and confirm the default provider/model is present.</li>
+<li>Confirm the config-bootstrapped remote profile has the expected name and email and does not
+require manual profile creation. The remote&#x27;s admin bot can inspect it with <code>get_local_profile</code>.
+Do not write it through the profile API. Verify the initial project is registered and onboarding
+reports its actual prerequisites satisfied; do not mark incomplete setup as finished merely to
+hide missing steps.</li>
+<li>Follow <a href="https://happy.engineering/recepies/#testing-a-deployed-node">Testing a deployed node</a>: create a new temporary
+project on the remote with its own disposable workspace and agent, separate from the initial
+project. Never reuse an existing project for tests. Through Happy, send a small task that
+checks its working directory, runs a harmless shell command, and creates/reads a disposable
+file inside the temporary workspace. Confirm model inference, tool execution, writable
+storage, and the user-visible response all work. Test every provider the user expects to use.
+Before each test action, check whether the user archived the temporary project; if so, stop
+without restoring or replacing it.</li>
+<li>With no active work, restart the remote service. Confirm systemd is enabled, authenticated
+health returns, the Tailcat endpoint is unchanged, and the primary reconnects. Recheck the
+temporary project&#x27;s archival state before sending a follow-up task to its test agent; stop if
+the user archived it. Inspect the initial project&#x27;s preserved state read-only. Recheck
+noninteractive Git access as the service user if GitHub was enabled. A reboot test requires
+the user&#x27;s approval.</li>
+<li>Archive the temporary project after verification, including when checks fail, and confirm its
+archived state. If the user already archived it, leave it archived. Report any unfinished
+checks or cleanup; do not archive the initial project or other existing projects.</li>
+</ol>
+<p>Give a concise handoff: machine and connection name, installed version, service/config/project
+locations, verified providers and default model, profile and Git identity, GitHub account/setup
+choice, and which checks passed. Include <code>sudo systemctl status happy-agent</code> and
+<code>sudo systemctl restart happy-agent</code> for maintenance, and any credential expiry/renewal steps.
+Never include tokens or auth-file contents. Report pending user login steps or unverified access
+plainly; a reachable daemon alone is not a fully working agent.</p></div>

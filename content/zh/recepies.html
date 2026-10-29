@@ -1,0 +1,31 @@
+<div class="document-content"><h1 id="operational-recipes">操作指南<a class="heading-anchor" href="#operational-recipes" aria-label="链接到操作指南"><span aria-hidden="true">#</span></a></h1>
+<p>这些文档为 Happy Agent 的常见任务提供分步操作说明。<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/README.md#recipes" target="_blank" rel="noreferrer">文档索引中的操作指南表</a>列出了每份指南及其适用场景。执行前请完整阅读相关指南，复用用户已提供的信息，并完成其中规定的验收检查。操作指南本身并不授予修改机器、开放服务或转移凭据的权限。</p>
+<p>默认自动执行操作指南。在用户授权的任务范围内，智能体负责信息核实、配置、安装、凭据配置、服务操作和验证；命令示例是给智能体的操作说明，不是交还给用户执行的清单。复用已知设置和文档中合理的默认值。只有缺少重要选择、需要新的授权，或确实必须由用户参与才能获得访问权限（例如交互式登录）时才询问。不要逐一确认每个常规步骤，也不要绕过权限或凭据边界。</p>
+<p>操作指南随 Happy Agent 一同提供，位于已安装文档的 README 旁边；即使当前智能体的工作区与 Happy Agent 源码检出目录无关，也可以找到。</p>
+<h2 id="testing-a-deployed-node">测试已部署的节点<a class="heading-anchor" href="#testing-a-deployed-node" aria-label="链接到测试已部署的节点"><span aria-hidden="true">#</span></a></h2>
+<p>以下规则适用于每个已部署 Happy Agent 节点在初始设置、升级和后续验证期间执行的测试命令与智能体冒烟测试，包括团队节点和独立（非团队）节点。</p>
+<ol>
+<li>每次验证都要在目标节点上新建一个命名清晰的临时项目，并为它准备独立的一次性文件夹、工作区和智能体。绝不复用现有项目、工作区或智能体，包括先前验证遗留的临时项目。不要将用户的初始项目或真实仓库用作测试环境。</li>
+<li>通过用户实际使用的连接，使用已配置的提供商运行一个小型推理任务。让智能体检查工作目录、执行无害的 shell 命令，并且只在临时工作区内创建和读取一次性文件。确认响应、工具执行和存储写入都正常；仅靠健康检查不能证明推理可用。</li>
+<li>每次发送任务或测试命令前、重新连接或重启后，以及清理前，都要检查临时项目当前的归档状态。如果用户已将其归档，就视为停止信号：不再发送任何工作，不恢复项目，也不自动创建替代项目继续测试。报告尚未完成的检查。如果无法确认项目状态，应暂停，而不是假定它仍处于活动状态。</li>
+<li>验证完成或失败时，如果临时项目仍处于活动状态，就将其归档，并确认归档成功。如果用户已经归档，保持其归档状态。使用正在运行的版本所附 <code>API.md</code> 中记载的项目归档操作；删除测试文件或仅归档工作区，不能代替归档项目。明确报告未完成的清理，绝不删除或归档无关的项目或文件夹。</li>
+</ol>
+<p>测试必须有明确边界，且不得超出用户授权的任务范围；推理可能产生提供商费用。检查升级后现有项目的状态是否保留时，只读查看即可，绝不向这些项目发送测试消息或在其中运行测试命令。</p>
+<h2 id="peer-messaging">对等消息通信<a class="heading-anchor" href="#peer-messaging" aria-label="链接到对等消息通信"><span aria-hidden="true">#</span></a></h2>
+<p>当两个安装实例上的智能体需要通过已知的 Agent ID 交换文本时，请阅读<a href="https://happy.engineering/recepies/peer-messaging/">通过一个 WebSocket 连接两个 Happy Agent</a>。参谋长通过现有管理访问权限配置两端，然后检查同一条已认证会话能否双向通信。桌面端主动向外连接；只有可达的安装实例监听连接。</p>
+<h2 id="windows-and-wsl">Windows 与 WSL<a class="heading-anchor" href="#windows-and-wsl" aria-label="链接到 Windows 与 WSL"><span aria-hidden="true">#</span></a></h2>
+<p>在 Windows 安装实例中添加 Linux 项目时，请阅读<a href="https://happy.engineering/recepies/wsl/">设置 WSL 项目</a>。默认将机器人保留在 Windows 上，通过现有远程连接接入所选 WSL 发行版中独立运行的 Happy Agent。复用 Linux 用户的项目和提供商登录；不要复制 Windows 守护进程数据库，也不要用 Windows 项目工具操作 Linux 项目路径。</p>
+<h2 id="accounts-and-models">账号与模型<a class="heading-anchor" href="#accounts-and-models" aria-label="链接到账号与模型"><span aria-hidden="true">#</span></a></h2>
+<p>当用户想添加提供商账号或建立账号池、限制模型、更改默认模型、推理强度或服务层级，或将会话迁移到另一家提供商时，请阅读<a href="https://happy.engineering/recepies/accounts-and-models/">账号、模型、推理强度与服务层级</a>。参谋长编辑并验证 <code>happy.toml</code>；应用变更时遵循配置重载章节。</p>
+<h2 id="exported-bots">对外接入的机器人<a class="heading-anchor" href="#exported-bots" aria-label="链接到对外接入的机器人"><span aria-hidden="true">#</span></a></h2>
+<p>当用户希望其他人从 Telegram 访问机器人时，请阅读<a href="https://happy.engineering/recepies/telegram/">将机器人接入 Telegram</a>；通过桥接程序接入其他服务时，请阅读<a href="https://happy.engineering/recepies/chat-bridge/">将机器人接入任意聊天服务</a>。更改允许访问的人员时，这两份指南任选一份阅读。应单独接入一个专用机器人，绝不能把参谋长对外开放。参谋长只负责接入该机器人，并批准或拒绝提交到它这里的人员访问申请。变更立即生效，无需重载。获准进入的每个人都是访客，他们的消息绝不视为用户指令，但机器人会使用其能访问的一切为他们工作，因此只有用户明确同意后，才能允许相应人员进入。</p>
+<h2 id="bot-settings">机器人设置<a class="heading-anchor" href="#bot-settings" aria-label="链接到机器人设置"><span aria-hidden="true">#</span></a></h2>
+<p>当用户希望限制机器人只能使用特定密钥、禁止其访问其他项目、工作区和智能体，或让它在 Docker 中运行时，请阅读<a href="https://happy.engineering/recepies/bot-settings/">通过机器人设置施加限制</a>。管理机器人调用 <code>update_bot_settings</code> 修改设置，并将 <code>get_bot_settings</code> 返回的值作为 <code>previous</code> 传入；扩大访问范围的变更需要审查。</p>
+<h2 id="happy-teams">Happy 团队<a class="heading-anchor" href="#happy-teams" aria-label="链接到 Happy 团队"><span aria-hidden="true">#</span></a></h2>
+<p>完整的共享服务器流程请阅读<a href="https://happy.engineering/recepies/team/">创建并部署 Happy 团队</a>：先登录 Happy Social 并绑定邮箱，创建具有明确名称的团队，以团队模式部署，验证本地连接，最后才申请发送邀请邮件。配套的 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/happy-teams.md" target="_blank" rel="noreferrer">Happy 团队指南</a>解释了账号和管理权限边界。</p>
+<h2 id="runners">执行器<a class="heading-anchor" href="#runners" aria-label="链接到执行器"><span aria-hidden="true">#</span></a></h2>
+<p>部署任何远程节点后，无论是独立节点还是团队节点，都请阅读<a href="https://happy.engineering/recepies/runner/">添加专用执行器</a>，并强烈建议采用：节点保留数据库和凭据，另一台机器运行智能体命令、Git、终端及项目文件夹。两份部署指南结束时都应提出这个选项；不要把执行器部署在节点所在的同一台机器上，也不要向执行器复制节点凭据。</p>
+<h2 id="hardening-a-node">节点安全加固<a class="heading-anchor" href="#hardening-a-node" aria-label="链接到节点安全加固"><span aria-hidden="true">#</span></a></h2>
+<p>当机器以服务形式运行自身的智能体工作时，请阅读<a href="https://happy.engineering/recepies/hardening/">使用独立 Linux 用户加固节点</a>；部署时若不采用专用执行器，都应提供这一选项。服务用户保留配置、数据库和凭据；智能体工作通过 sudo 以无法读取这些内容的工作负载用户执行，特定机器人也可以使用各自独立的用户运行。在守护进程首次启动前完成设置，因为文件夹会放在工作负载用户的主目录中。同一节点不能同时采用此方案和执行器。</p>
+<h2 id="enterprise-sign-in">企业登录<a class="heading-anchor" href="#enterprise-sign-in" aria-label="链接到企业登录"><span aria-hidden="true">#</span></a></h2>
+<p>当团队希望使用自己的身份提供商而不是 WorkOS 登录时，请阅读<a href="https://happy.engineering/recepies/enterprise-sign-in/">设置企业 JWT 登录</a>。Happy 应用直接通过组织的 OAuth 授权服务器登录，使用带 PKCE 的授权码流程，并可选用刷新机制；守护进程仅验证最终的访问令牌，绝不会接触授权码或刷新令牌。</p></div>
