@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happy 文档：统一编排 Claude、Codex、Grok、Gemini 等智能体</title>
+<meta name="description" content="Happy 是一个开源的智能体运行与编排框架，让你在同一款桌面应用中使用 Claude、Codex、Grok、Gemini 等智能体，并沿用已有订阅。本页介绍如何开始。">
+<meta name="theme-color" content="#f5f0e7">
+<style>
+/* 沿用原站欢迎页的配色、布局、字号、间距及响应式断点；字体使用本机字体，离线不请求字体服务。 */
+:root{color-scheme:light;color:#183f38;background:#f5f0e7;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-synthesis:none;font-optical-sizing:auto;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px}a{color:inherit;text-decoration:none}h1,h2,h3,p{margin-top:0}.site-shell{overflow-x:hidden;overflow-x:clip}.page-width{width:min(1180px,calc(100% - 64px));margin:0 auto}.site-header-wrap{background:#f5f0e7;border-bottom:1px solid transparent;position:sticky;top:0;z-index:40}.site-header{align-items:center;display:flex;justify-content:space-between;min-height:60px}.site-header-brand{align-items:center;display:flex;gap:1.15rem;min-width:0}.wordmark{color:#183f38;font-size:1.05rem;font-weight:700;letter-spacing:-.04em;white-space:nowrap}.wordmark span{color:#e6522c;margin-left:.28em}.site-header nav{align-items:center;display:flex;gap:1.65rem;font-size:.86rem;font-weight:500}.site-header nav>a{opacity:.82}.site-header nav>a:hover{opacity:1}.site-header nav>a[aria-current=page]{opacity:1;text-decoration:underline 2px #e6522c;text-underline-offset:.5em}.nav-github{align-items:center;display:inline-flex;gap:.45rem;height:30px;opacity:1!important;position:relative;transition:color .2s ease}.nav-github:after{content:"";inset:-7px -4px;position:absolute}.nav-github svg{display:block}.nav-github-count{font-family:"DM Mono",monospace;font-size:.76rem;font-weight:500;white-space:nowrap}.nav-github:hover{color:#e6522c}
+.document-site-shell{min-height:100vh}.docs-layout{display:grid;gap:4rem;grid-template-columns:210px minmax(0,760px);min-height:calc(100vh - 61px);padding-bottom:7rem;padding-top:3.5rem}.docs-sidebar{align-self:start;max-height:calc(100vh - 3rem);overflow-y:auto;position:sticky;scrollbar-color:transparent transparent;scrollbar-width:thin;top:1.5rem}.docs-sidebar:hover,.docs-sidebar:focus-within{scrollbar-color:#183f3845 transparent}.docs-navigation{display:grid;gap:1.5rem}.docs-nav-group h2,.docs-nav-fold summary{color:#183f38;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-size:.77rem;font-weight:700;letter-spacing:0;margin:0 0 .5rem}.docs-nav-fold summary{align-items:center;cursor:pointer;display:flex;justify-content:space-between;list-style:none;margin:0;min-height:32px}.docs-nav-fold summary::-webkit-details-marker{display:none}.docs-nav-fold summary:after{border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor;content:"";height:5px;margin-right:.5rem;transform:rotate(-45deg);width:5px;flex:none}.docs-nav-fold[open] summary:after{transform:rotate(45deg)}.docs-nav-fold[open] summary{margin-bottom:.5rem}.docs-nav-fold summary:focus-visible{border-radius:4px;outline:2px solid #e6522c;outline-offset:3px}.docs-nav-group ul{display:grid;gap:.2rem;list-style:none;margin:0;padding:0}.docs-nav-group a{border-radius:7px;color:#557068;display:block;font-size:.78rem;line-height:1.35;padding:.38rem .5rem}.docs-nav-group a:hover{background:#ebe5d9;color:#183f38}.docs-nav-group a[aria-current=page]{background:#dbe2cd;color:#183f38;font-weight:600}.docs-mobile-navigation{display:none}
+.document-article{min-width:0}.document-content{color:#294c45;font-size:1rem;line-height:1.75}.document-content h1,.document-content h2,.document-content h3{color:#183f38;font-family:"Space Grotesk","DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:600;letter-spacing:-.025em;text-wrap:balance}.document-content h1[id],.document-content h2[id],.document-content h3[id]{scroll-margin-top:2rem}.document-content h1{font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.15;margin:0 0 1.2rem}.document-content h2{border-top:1px solid #ddd6c8;font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.15;margin:4rem 0 1.2rem;padding-top:2.2rem}.document-content .heading-anchor{color:#e6522c;font-size:.7em;margin-left:.35em;opacity:0;text-decoration:none}.document-content h1:hover .heading-anchor,.document-content h2:hover .heading-anchor,.document-content .heading-anchor:focus{opacity:.55}.document-content .heading-anchor:hover{opacity:1}.document-content p{margin:0 0 1.25rem;text-wrap:pretty}.document-content>p:first-of-type{color:#557068;font-size:1.08rem}.document-content strong{color:#183f38;font-weight:700}.document-content a{color:#d94725;text-decoration:underline;text-decoration-color:#d9472559;text-underline-offset:.2em}.document-content a:hover{text-decoration-color:currentColor}.document-content ul{margin:0 0 1.4rem;padding-left:1.45rem}.document-content li{margin:.35rem 0;padding-left:.2rem}.document-content li::marker{color:#e6522c}
+.document-pagination{border-top:1px solid #d9d3c5;display:grid;gap:1rem;grid-template-columns:1fr 1fr;margin-top:5rem;padding-top:1.5rem}.document-pagination a{border:1px solid #d5cebf;border-radius:10px;color:#183f38;font-size:.88rem;font-weight:600;padding:1rem}.document-pagination a:hover{border-color:#183f38}.document-pagination a span{color:#6b7f78;display:block;font-family:"DM Mono",monospace;font-size:.58rem;font-weight:500;letter-spacing:.06em;margin-bottom:.25rem;text-transform:uppercase}.document-pagination-next{text-align:right}
+.site-footer{background:#f0ebe0;border-top:1px solid #d9d3c5;padding:3.5rem 0}.footer-inner{display:grid;gap:2.5rem;grid-template-columns:1.4fr 1fr;align-items:start}.footer-statement{font-family:"Space Grotesk","DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:500;font-size:1.3rem;letter-spacing:-.01em;line-height:1.4;margin:0;max-width:30ch}.footer-meta{text-align:right}.footer-meta p{color:#47645e;font-size:.78rem;margin:.6rem 0 0}.footer-meta .footer-descriptor{color:#183f38;font-size:.9rem;margin-top:.45rem}.footer-links{display:flex;flex-wrap:wrap;font-size:.8rem;gap:.6rem 1.25rem;justify-content:flex-end;margin-bottom:1.1rem}.footer-links a{border-bottom:1px solid transparent}.footer-links a:hover{border-color:currentColor}.footer-links .footer-link-quiet{color:#6b7f78}.footer-people{display:block;margin-top:.85rem;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-size:.95rem;font-weight:400}.footer-people a{text-decoration:underline;text-underline-offset:3px}
+/* 保留原站桌面端侧栏与正文分别滚动的结构，使用浏览器原生细滚动条。 */
+@media(min-width:761px){.docs-shell{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}.docs-shell .site-header-wrap{flex:0 0 auto}.docs-shell .docs-layout{flex:1 1 auto;margin:0;max-width:none;min-height:0;overflow:hidden;padding:0 0 0 max(32px,calc((100% - 1180px)/2));width:100%;grid-template-columns:210px minmax(0,1fr);column-gap:0}.docs-shell .docs-sidebar{align-self:stretch;height:100%;max-height:none;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:1.75rem 2px 3rem;position:static}.docs-shell .document-article{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:1.75rem 0 0 4rem;position:relative;scrollbar-width:thin;scrollbar-color:#183f3845 transparent}.docs-shell .document-article>.document-content,.docs-shell .document-article>.document-pagination{max-width:760px;padding-right:2rem}.docs-shell .site-footer{margin-top:4.5rem}.docs-shell .site-footer .footer-inner{margin:0;max-width:none;padding:0 3rem 0 2.5rem;width:auto}}
+@media(min-width:761px) and (max-width:900px){.docs-shell .docs-layout{grid-template-columns:190px minmax(0,1fr)}.docs-shell .document-article{padding-left:2.5rem}}
+@media(max-width:900px){.site-header nav{gap:1.2rem}}
+@media(max-width:760px){.page-width{width:min(100% - 40px,620px)}.site-header{gap:.75rem;min-height:52px}.site-header nav{gap:.85rem;font-size:.8rem}.site-header-brand{gap:.6rem}.footer-inner{grid-template-columns:1fr;gap:2rem}.footer-meta{text-align:left}.footer-links{justify-content:flex-start}.docs-mobile-navigation{border-bottom:1px solid #d9d3c5;display:block;padding-bottom:.25rem;padding-top:.25rem}.docs-mobile-trail{align-items:center;appearance:none;background:none;border:0;border-radius:7px;color:#183f38;cursor:pointer;display:flex;font-family:"DM Mono",monospace;font-size:12px;font-weight:500;gap:.5rem;letter-spacing:.06em;min-height:44px;padding:0;text-align:left;text-transform:uppercase;width:100%}.docs-mobile-trail:after{border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor;box-sizing:border-box;content:"";flex:none;height:6px;margin:0 4px 0 auto;transform:translateY(-1.5px) rotate(45deg);transition:transform .15s;width:6px}.docs-mobile-trail[aria-expanded=true]:after{transform:translateY(1.5px) rotate(-135deg)}.docs-mobile-trail:focus-visible{outline:2px solid #e6522c;outline-offset:2px}.docs-mobile-trail>span{flex:none}.docs-mobile-trail-group{color:#6b7f78}.docs-mobile-trail>.docs-mobile-trail-page{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.docs-mobile-menu{padding:.5rem 0 1rem}.docs-mobile-navigation .docs-navigation{gap:1.1rem;grid-template-columns:repeat(2,minmax(0,1fr))}.docs-sidebar{display:none}.docs-layout{display:block;min-height:0;padding-bottom:5rem;padding-top:2.5rem}.docs-shell{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}.docs-shell .docs-layout{display:flex;flex:1 0 auto;flex-direction:column;padding-bottom:0}.docs-shell .document-article{display:flex;flex:1 0 auto;flex-direction:column}.docs-shell .document-article>*{min-width:0}.docs-shell .document-pagination{margin-bottom:4rem}.docs-shell .site-footer{margin:auto calc(50% - 50vw) 0}.document-content h1[id],.document-content h2[id]{scroll-margin-top:72px}.document-content h2{margin-top:3.2rem}}
+@media(max-width:420px){.site-header nav{gap:.7rem}.site-header-brand{gap:.55rem}.wordmark{font-size:.98rem}.nav-github{gap:.35rem}.docs-mobile-navigation .docs-navigation,.document-pagination{grid-template-columns:1fr}.document-pagination-next{text-align:left}}
+</style>
+</head>
+<body>
+<div id="app"><div class="site-shell document-site-shell docs-shell">
+<div class="site-header-wrap"><header class="site-header page-width" id="top"><div class="site-header-brand"><a class="wordmark" href="https://happy.engineering/" aria-label="Happy Engineering 首页">Happy<span>Engineering</span></a></div><nav aria-label="主导航"><a href="#welcome" aria-current="page">文档</a><a class="nav-github" href="https://github.com/slopus/happy" target="_blank" rel="noopener noreferrer" aria-label="GitHub 上的 Happy，24,384 颗星"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg><span class="nav-github-count">24k</span></a></nav></header></div>
+<div class="docs-mobile-navigation page-width"><button type="button" class="docs-mobile-trail" aria-expanded="false" aria-controls="docs-mobile-menu"><span class="docs-mobile-trail-group">从这里开始</span><span aria-hidden="true">/</span><span class="docs-mobile-trail-page">欢迎</span></button><div id="docs-mobile-menu" class="docs-mobile-menu" hidden><nav class="docs-navigation" aria-label="文档导航">
+<section class="docs-nav-group"><h2>从这里开始</h2><ul>
+<li><a href="#welcome" aria-current="page">欢迎</a></li>
+<li><a href="https://happy.engineering/quick-start/">快速开始</a></li>
+<li><a href="https://happy.engineering/chief-of-staff/">参谋长</a></li>
+<li><a href="https://happy.engineering/how-it-works/">工作原理</a></li>
+<li><a href="https://happy.engineering/vision/">愿景</a></li>
+<li><a href="https://happy.engineering/team/">团队</a></li>
+</ul></section>
+<section class="docs-nav-group"><h2>功能</h2><ul>
+<li><a href="https://happy.engineering/models/">模型与订阅</a></li>
+<li><a href="https://happy.engineering/permissions/">权限与沙箱</a></li>
+<li><a href="https://happy.engineering/secrets/">密钥管理</a></li>
+<li><a href="https://happy.engineering/workspaces/">项目与工作区</a></li>
+<li><a href="https://happy.engineering/agents/">永不终止的智能体</a></li>
+<li><a href="https://happy.engineering/mobile/">移动端访问</a></li>
+<li><a href="https://happy.engineering/multiplayer/">多人协作与团队</a></li>
+<li><a href="https://happy.engineering/extending/">技能与 MCP</a></li>
+</ul></section>
+<section class="docs-nav-group"><h2>指南</h2><ul>
+<li><a href="https://happy.engineering/guides/terminal/">原版 Happy CLI</a></li>
+<li><a href="https://happy.engineering/guides/configuration/">配置</a></li>
+<li><a href="https://happy.engineering/guides/remote-server/">远程服务器</a></li>
+</ul></section>
+<section class="docs-nav-group"><h2>博客</h2><ul>
+<li><a href="https://happy.engineering/workos/">通过 WorkOS 实现团队登录</a></li>
+<li><a href="https://happy.engineering/tailcat/">无需开放端口：Tailcat</a></li>
+<li><a href="https://happy.engineering/voice/">通过 ElevenLabs 实现语音交互</a></li>
+<li><a href="https://happy.engineering/updates/">在交互轮次中途更新</a></li>
+<li><a href="https://happy.engineering/stem-cell/">干细胞</a></li>
+</ul></section>
+<section class="docs-nav-group"><h2>对比</h2><ul>
+<li><a href="https://happy.engineering/desktop-app/">适用于 Claude Code 与 Codex 的桌面应用</a></li>
+<li><a href="https://happy.engineering/mobile-app/">在手机上使用 Claude Code</a></li>
+<li><a href="https://happy.engineering/claude-code-remote-control/">Happy 与 Remote Control 对比</a></li>
+<li><a href="https://happy.engineering/t3-code/">Happy 与 T3 Code 对比</a></li>
+</ul></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>更新日志</summary><ul><li><a href="https://happy.engineering/changelog/">更新日志</a></li></ul></details></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>操作配方（面向智能体）</summary><ul>
+<li><a href="https://happy.engineering/recepies/">操作配方</a></li>
+<li><a href="https://happy.engineering/recepies/first-project/">从一个项目开始</a></li>
+<li><a href="https://happy.engineering/recepies/mobile-access/">设置或修复移动端访问</a></li>
+<li><a href="https://happy.engineering/recepies/accounts-and-models/">账号、模型、推理强度与服务层级</a></li>
+<li><a href="https://happy.engineering/recepies/harnesses/">运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体</a></li>
+<li><a href="https://happy.engineering/recepies/wsl/">在 Windows 中设置 WSL 项目</a></li>
+<li><a href="https://happy.engineering/recepies/telegram/">将机器人接入 Telegram</a></li>
+<li><a href="https://happy.engineering/recepies/chat-bridge/">将机器人接入任意聊天服务</a></li>
+<li><a href="https://happy.engineering/recepies/bot-settings/">通过机器人设置限制机器人</a></li>
+<li><a href="https://happy.engineering/recepies/shared-app/">构建实时共享的 HTML 产物</a></li>
+<li><a href="https://happy.engineering/recepies/peer-messaging/">通过单个 WebSocket 连接两个 Happy 智能体</a></li>
+<li><a href="https://happy.engineering/recepies/rest-api/">通过 REST API 驱动 Happy 智能体</a></li>
+<li><a href="https://happy.engineering/recepies/remote-agent/">部署独立的远程智能体</a></li>
+<li><a href="https://happy.engineering/recepies/team/">创建并部署 Happy 团队</a></li>
+<li><a href="https://happy.engineering/recepies/runner/">添加专用运行节点</a></li>
+<li><a href="https://happy.engineering/recepies/hardening/">使用独立 Linux 用户加固节点</a></li>
+<li><a href="https://happy.engineering/recepies/enterprise-sign-in/">设置企业 JWT 登录</a></li>
+<li><a href="https://happy.engineering/recepies/upgrade/">升级 Happy 智能体</a></li>
+</ul></details></section>
+</nav></div></div>
+<main class="docs-layout page-width">
+<aside class="docs-sidebar"><nav class="docs-navigation" aria-label="文档导航">
+<section class="docs-nav-group"><h2>从这里开始</h2><ul>
+<li><a href="#welcome" aria-current="page">欢迎</a></li>
+<li><a href="https://happy.engineering/quick-start/">快速开始</a></li>
+<li><a href="https://happy.engineering/chief-of-staff/">参谋长</a></li>
+<li><a href="https://happy.engineering/how-it-works/">工作原理</a></li>
+<li><a href="https://happy.engineering/vision/">愿景</a></li>
+<li><a href="https://happy.engineering/team/">团队</a></li>
+</ul></section>
+<section class="docs-nav-group"><h2>功能</h2><ul>
+<li><a href="https://happy.engineering/models/">模型与订阅</a></li>
+<li><a href="https://happy.engineering/permissions/">权限与沙箱</a></li>
+<li><a href="https://happy.engineering/secrets/">密钥管理</a></li>
+<li><a href="https://happy.engineering/workspaces/">项目与工作区</a></li>
+<li><a href="https://happy.engineering/agents/">永不终止的智能体</a></li>
+<li><a href="https://happy.engineering/mobile/">移动端访问</a></li>
+<li><a href="https://happy.engineering/multiplayer/">多人协作与团队</a></li>
+<li><a href="https://happy.engineering/extending/">技能与 MCP</a></li>
+</ul></section>
+<section class="docs-nav-group"><h2>指南</h2><ul>
+<li><a href="https://happy.engineering/guides/terminal/">原版 Happy CLI</a></li>
+<li><a href="https://happy.engineering/guides/configuration/">配置</a></li>
+<li><a href="https://happy.engineering/guides/remote-server/">远程服务器</a></li>
+</ul></section>
+<section class="docs-nav-group"><h2>博客</h2><ul>
+<li><a href="https://happy.engineering/workos/">通过 WorkOS 实现团队登录</a></li>
+<li><a href="https://happy.engineering/tailcat/">无需开放端口：Tailcat</a></li>
+<li><a href="https://happy.engineering/voice/">通过 ElevenLabs 实现语音交互</a></li>
+<li><a href="https://happy.engineering/updates/">在交互轮次中途更新</a></li>
+<li><a href="https://happy.engineering/stem-cell/">干细胞</a></li>
+</ul></section>
+<section class="docs-nav-group"><h2>对比</h2><ul>
+<li><a href="https://happy.engineering/desktop-app/">适用于 Claude Code 与 Codex 的桌面应用</a></li>
+<li><a href="https://happy.engineering/mobile-app/">在手机上使用 Claude Code</a></li>
+<li><a href="https://happy.engineering/claude-code-remote-control/">Happy 与 Remote Control 对比</a></li>
+<li><a href="https://happy.engineering/t3-code/">Happy 与 T3 Code 对比</a></li>
+</ul></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>更新日志</summary><ul><li><a href="https://happy.engineering/changelog/">更新日志</a></li></ul></details></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>操作配方（面向智能体）</summary><ul>
+<li><a href="https://happy.engineering/recepies/">操作配方</a></li>
+<li><a href="https://happy.engineering/recepies/first-project/">从一个项目开始</a></li>
+<li><a href="https://happy.engineering/recepies/mobile-access/">设置或修复移动端访问</a></li>
+<li><a href="https://happy.engineering/recepies/accounts-and-models/">账号、模型、推理强度与服务层级</a></li>
+<li><a href="https://happy.engineering/recepies/harnesses/">运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体</a></li>
+<li><a href="https://happy.engineering/recepies/wsl/">在 Windows 中设置 WSL 项目</a></li>
+<li><a href="https://happy.engineering/recepies/telegram/">将机器人接入 Telegram</a></li>
+<li><a href="https://happy.engineering/recepies/chat-bridge/">将机器人接入任意聊天服务</a></li>
+<li><a href="https://happy.engineering/recepies/bot-settings/">通过机器人设置限制机器人</a></li>
+<li><a href="https://happy.engineering/recepies/shared-app/">构建实时共享的 HTML 产物</a></li>
+<li><a href="https://happy.engineering/recepies/peer-messaging/">通过单个 WebSocket 连接两个 Happy 智能体</a></li>
+<li><a href="https://happy.engineering/recepies/rest-api/">通过 REST API 驱动 Happy 智能体</a></li>
+<li><a href="https://happy.engineering/recepies/remote-agent/">部署独立的远程智能体</a></li>
+<li><a href="https://happy.engineering/recepies/team/">创建并部署 Happy 团队</a></li>
+<li><a href="https://happy.engineering/recepies/runner/">添加专用运行节点</a></li>
+<li><a href="https://happy.engineering/recepies/hardening/">使用独立 Linux 用户加固节点</a></li>
+<li><a href="https://happy.engineering/recepies/enterprise-sign-in/">设置企业 JWT 登录</a></li>
+<li><a href="https://happy.engineering/recepies/upgrade/">升级 Happy 智能体</a></li>
+</ul></details></section>
+</nav></aside>
+<article class="document-article" data-document="welcome"><div class="document-content">
+<h1 id="welcome">欢迎<a class="heading-anchor" href="#welcome" aria-label="链接到欢迎"><span aria-hidden="true">#</span></a></h1>
+<p><strong>Happy</strong> 是一个开源的编程智能体运行与编排框架：在同一款<a href="https://happy.engineering/desktop-app/">桌面应用</a>中使用 Claude、Codex、Grok、Gemini 等智能体，并沿用你已经付费的订阅。智能体可以将工作交给使用其他模型的子智能体，在统一的权限模型与沙箱下运行，并在重启后继续工作。手机应用、远程服务器和团队协作也都是其中的一部分。</p>
+<p>下载适用于 <a href="https://happy.engineering/#download">macOS、Windows 或 Linux</a> 的版本并打开。Happy 会启动自己的智能体运行环境，并自动使用本机已有的 Claude、Codex 和 Grok 登录状态。</p>
+<h2 id="what-you-get">你将获得什么<a class="heading-anchor" href="#what-you-get" aria-label="链接到你将获得什么"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>每个模型，都有原生体验。</strong>Claude 使用 Claude Code 的提示词和工具，GPT 模型使用 Codex 的，Grok 使用 Grok Build 的。Gemini 在 Google 的 Antigravity 中运行，也支持运行任何兼容智能体客户端协议（ACP）的智能体（测试版）。切换模型后，对话记录仍会保留。</li>
+<li><strong>编排。</strong>使用任意模型的子智能体、可以相互发消息的智能体、定时消息，以及持久运行的机器人。</li>
+<li><strong>沿用你的订阅。</strong>访问模型无需 Happy 账号。凭据来自本机已有的 Claude Code、Codex 和 Grok CLI 登录状态。</li>
+<li><strong>参谋长。</strong>应用中的第一个机器人。通过对话，它就能帮你配置 Happy：添加模型账号、导入项目、配对手机、部署远程智能体、创建团队，以及升级 Happy。</li>
+<li><strong>持久会话。</strong>即使关闭窗口或重启，每段对话和每个子智能体也都会保留，并在收到下一条消息时带着完整上下文继续工作。</li>
+<li><strong>自动模式。</strong>读取操作和工作区内的编辑无需审批即可执行。其他所有操作都由操作系统沙箱隔离。少数跨越沙箱边界的操作会自动接受审查，不会弹出提示要求你确认。</li>
+<li><strong>工作区。</strong>并行任务拥有各自独立分支上的 Git 工作树（worktree）。</li>
+<li><strong>手机。</strong>在<a href="https://happy.engineering/mobile-app/">适用于 iPhone 和 Android 的 Happy 应用</a>中访问同样的会话，并采用端到端加密。中继服务器仅传输密文。</li>
+<li><strong>多人协作。</strong>部署一台<a href="https://happy.engineering/multiplayer/">团队服务器</a>，即可共同工作。每个人以自己的身份登录，共享相同的项目与会话。</li>
+<li><strong>技能与 MCP。</strong>通过 Markdown 文件和 TOML 配置条目定义，两者都可以由智能体编写。</li>
+<li><strong>MIT 许可证。</strong>阅读源码、派生项目（fork），发布你自己的构建版本。</li>
+</ul>
+<h2 id="what-does-happy-cost">Happy 如何收费？<a class="heading-anchor" href="#what-does-happy-cost" aria-label="链接到 Happy 如何收费"><span aria-hidden="true">#</span></a></h2>
+<p>Happy 免费提供，并采用 MIT 许可证；模型使用你自己的 Claude、Codex 和 Grok 订阅。我们唯一收费的项目是手机应用中的语音功能：每 30 天免费提供 20 分钟，之后通过应用内订阅可获得每 30 天最多 5 小时的用量。如果使用你自己的 ElevenLabs 智能体，Happy 不设用量限制。详见<a href="https://happy.engineering/voice/">语音</a>。</p>
+<h2 id="next">接下来<a class="heading-anchor" href="#next" aria-label="链接到接下来"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><a href="https://happy.engineering/quick-start/">快速开始</a></li>
+<li><a href="https://happy.engineering/guides/remote-server/">在远程服务器上运行智能体</a></li>
+<li><a href="https://happy.engineering/chief-of-staff/">参谋长</a></li>
+<li><a href="https://happy.engineering/how-it-works/">工作原理</a></li>
+<li><a href="https://happy.engineering/permissions/">权限与沙箱</a></li>
+</ul>
+</div>
+<nav class="document-pagination" aria-label="文档上一页与下一页"><span></span><a class="document-pagination-next" href="https://happy.engineering/quick-start/"><span>下一页</span>快速开始</a></nav>
+<footer class="site-footer"><div class="page-width footer-inner"><p class="footer-statement">我们围绕智能体构建交互界面：让你掌控它们的方式、它们运行的方式，以及团队与它们共享上下文的方式。<span class="footer-people"><a href="https://x.com/Ex3NDR" target="_blank" rel="noopener noreferrer">@Ex3NDR</a> 与 <a href="https://x.com/bra1n_dump" target="_blank" rel="noopener noreferrer">@bra1n_dump</a></span></p><div class="footer-meta"><div class="footer-links" aria-label="页脚导航"><a href="#welcome">文档</a><a href="https://happy.engineering/desktop-app/">桌面应用</a><a href="https://happy.engineering/mobile-app/">手机应用</a><a href="https://happy.engineering/privacy/">隐私政策</a><a href="https://happy.engineering/terms/">服务条款</a><a class="footer-link-quiet" href="https://happy.engineering/docs/">原版 Happy CLI</a></div><a class="wordmark" href="https://happy.engineering/" aria-label="Happy Engineering 首页">Happy<span>Engineering</span></a><p class="footer-descriptor">在同一款应用中编排 Claude、Codex、Grok、Gemini 等智能体</p><p>© 2026 Happy Engineering</p></div></div></footer>
+</article></main></div></div>
+<script>
+/* 仅复现原站移动端文档导航的展开与收起，不添加其他功能。 */
+const trail=document.querySelector('.docs-mobile-trail');
+const menu=document.getElementById('docs-mobile-menu');
+trail.addEventListener('click',()=>{const expanded=trail.getAttribute('aria-expanded')==='true';trail.setAttribute('aria-expanded',String(!expanded));menu.hidden=expanded;});
+menu.addEventListener('click',event=>{const link=event.target.closest('a');if(link&&link.getAttribute('href')==='#welcome'){menu.hidden=true;trail.setAttribute('aria-expanded','false');}});
+</script>
+</body>
+</html>
