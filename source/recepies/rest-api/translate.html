@@ -1,0 +1,348 @@
+<div class="document-content"><h1 id="drive-happy-agent-over-its-rest-api">Drive Happy Agent over its REST API<a class="heading-anchor" href="#drive-happy-agent-over-its-rest-api" aria-label="Link to Drive Happy Agent over its REST API"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe when a script or an agent with only a shell should set up, use, or debug Happy
+Agent: find and message agents, create bots, tasks, projects, and workspaces, publish artifacts,
+edit Surfaces, and diagnose failures. It is a cookbook of the common calls, one short example per
+job. The installed release&#x27;s <code>API.md</code> (in the source checkout, <code>packages/happy-agent/API.md</code>) is
+the complete contract; each section names the <code>API.md</code> section to read for every other field,
+status, and rule.</p>
+<ol>
+<li><a href="#connect-and-authenticate">Connect and authenticate</a></li>
+<li><a href="#remote-and-team-daemons">Remote and team daemons</a></li>
+<li><a href="#configuration-models-and-instructions">Configuration, models, and instructions</a></li>
+<li><a href="#find-bots-tasks-projects-and-agents">Find bots, tasks, projects, and agents</a></li>
+<li><a href="#skills-and-secrets">Skills and secrets</a></li>
+<li><a href="#message-an-agent-and-read-the-reply">Message an agent and read the reply</a></li>
+<li><a href="#steer-stop-answer-and-run-commands">Steer, stop, answer, and run commands</a></li>
+<li><a href="#bots">Bots</a></li>
+<li><a href="#tasks">Tasks</a></li>
+<li><a href="#projects-workspaces-and-agents">Projects, workspaces, and agents</a></li>
+<li><a href="#artifacts">Artifacts</a></li>
+<li><a href="#surfaces-todos-documents-and-calendars">Surfaces: todos, documents, and calendars</a></li>
+<li><a href="#what-has-no-rest-route">What has no REST route</a></li>
+<li><a href="#debugging">Debugging</a></li>
+<li><a href="#pitfalls">Pitfalls</a></li>
+</ol>
+<p>The examples build on each other in one shell: later ones reuse variables set by earlier ones.
+They need <code>curl</code>, <code>jq</code>, and <code>openssl</code>.</p>
+<h2 id="connect-and-authenticate">Connect and authenticate<a class="heading-anchor" href="#connect-and-authenticate" aria-label="Link to Connect and authenticate"><span aria-hidden="true">#</span></a></h2>
+<p>A standalone daemon serves HTTP only on the Unix socket <code>~/.happy/agent/server.sock</code>, and every
+request except <code>GET /v0/authentication</code> needs the bearer token in <code>~/.happy/agent/token</code>. Both
+live under <code>$HAPPY_HOME_DIR/agent</code> when that is set. The token is the daemon&#x27;s full credential:
+never echo, log, or paste it, and keep it out of command arguments. Write it once into a private
+header file and use it through these helpers:</p>
+<pre><code class="language-sh">HAPPY_DIR=&quot;${HAPPY_HOME_DIR:-$HOME/.happy}/agent&quot;
+HAPPY_SOCKET=&quot;$HAPPY_DIR/server.sock&quot;
+HAPPY_AUTH=&quot;$(mktemp)&quot;   # created with mode 0600
+trap &#x27;rm -f &quot;$HAPPY_AUTH&quot;&#x27; EXIT
+printf &#x27;Authorization: Bearer %s\n&#x27; &quot;$(cat &quot;$HAPPY_DIR/token&quot;)&quot; &gt; &quot;$HAPPY_AUTH&quot;
+
+# happy_api PATH [curl options]: an authenticated request; happy_send METHOD PATH JSON [options].
+happy_api() { curl -sS --unix-socket &quot;$HAPPY_SOCKET&quot; -H @&quot;$HAPPY_AUTH&quot; &quot;http://localhost$@&quot;; }
+happy_send() {
+    local method=&quot;$1&quot; path=&quot;$2&quot; body=&quot;$3&quot;; shift 3
+    happy_api &quot;$path&quot; -X &quot;$method&quot; -H &#x27;content-type: application/json&#x27; --data-binary &quot;$body&quot; &quot;$@&quot;
+}
+# A fresh client ID: 24 lowercase letters and digits, valid wherever a request accepts an ID.
+new_id() { printf &#x27;m%s&#x27; &quot;$(openssl rand -hex 12 | cut -c1-23)&quot;; }
+
+happy_api /v0/health | jq &#x27;{ready, version}&#x27;
+</code></pre>
+<p>Wait until <code>ready</code> is <code>true</code>; until then only health answers. <code>version.protocol</code> is the
+compatibility number; see Versioning in <code>API.md</code>.</p>
+<h2 id="remote-and-team-daemons">Remote and team daemons<a class="heading-anchor" href="#remote-and-team-daemons" aria-label="Link to Remote and team daemons"><span aria-hidden="true">#</span></a></h2>
+<p>The local daemon proxies every remote it has configured, standalone or team. List them, then put
+<code>/v0/connections/&lt;id&gt;/api</code> in front of any path in this recipe:</p>
+<pre><code class="language-sh">happy_api /v0/connections | jq &#x27;.connections[] | {id, name, authentication}&#x27;
+REMOTE=build-mac
+happy_api &quot;/v0/connections/$REMOTE/api/v0/health&quot; | jq &#x27;{ready, version}&#x27;
+</code></pre>
+<p>The local daemon supplies the remote&#x27;s credential, including a team&#x27;s WorkOS token, so the script
+only ever holds the local token. IDs and cursors from a remote belong to it: use them only
+through the same prefix. A team daemon reached directly takes an access token for its own
+organization, which <code>POST /v0/cloud/access-token</code> does not mint; see Authentication and Remote
+connections in <code>API.md</code>. Remotes are configured in <code>happy.toml</code> or by an admin bot, not over HTTP.</p>
+<h2 id="configuration-models-and-instructions">Configuration, models, and instructions<a class="heading-anchor" href="#configuration-models-and-instructions" aria-label="Link to Configuration, models, and instructions"><span aria-hidden="true">#</span></a></h2>
+<p><code>GET /v0/config</code> is the sanitized configuration: defaults, the model catalog, providers, MCP
+server names, and settings. Credentials never appear in it.</p>
+<pre><code class="language-sh">happy_api /v0/config | jq &#x27;.config.defaults&#x27;
+# Enabled models per provider, with the efforts each accepts.
+happy_api /v0/config | jq &#x27;.config as $c | $c.providers | to_entries[]
+    | select(.value.enabled) | {provider: .key,
+      models: [.value.models[] | select(.enabled) | {id, efforts: $c.models[.id].efforts}]}&#x27;
+</code></pre>
+<p><code>PATCH /v0/config</code> changes the runtime subset: provider <code>enabled</code>, node and P2P names, settings,
+and voice. <code>POST /v0/providers/scan</code> re-detects installed provider credentials. The global agent
+instructions are one Markdown document:</p>
+<pre><code class="language-sh">happy_api /v0/config/instructions | jq -r .instructions
+happy_send PUT /v0/config/instructions &quot;$(jq -n --arg t &quot;Prefer small commits.&quot; &#x27;{instructions: $t}&#x27;)&quot; |
+    jq &#x27;.instructions | length&#x27;
+</code></pre>
+<p><code>PUT</code> replaces the whole document, so read it first and send it back edited. See <code>GET /v0/config</code>
+and <code>PATCH /v0/config</code> in <code>API.md</code> for the full shapes.</p>
+<h2 id="find-bots-tasks-projects-and-agents">Find bots, tasks, projects, and agents<a class="heading-anchor" href="#find-bots-tasks-projects-and-agents" aria-label="Link to Find bots, tasks, projects, and agents"><span aria-hidden="true">#</span></a></h2>
+<p>There is no global agent list. Every bot and task embeds its one agent as <code>agent</code>, and every
+project and workspace lists its active top-level agents in <code>agents</code>. Lists include archived
+entries, so filter on <code>status</code>.</p>
+<pre><code class="language-sh">CHIEF_ID=$(happy_api /v0/bots | jq -r &#x27;.bots[]
+    | select(.systemKey == &quot;chief_of_staff&quot; and .status == &quot;active&quot;) | .agent.id&#x27;)
+happy_api /v0/bots | jq &#x27;.bots[] | select(.status == &quot;active&quot;) | {name, username, agentId: .agent.id}&#x27;
+happy_api /v0/tasks | jq &#x27;.tasks[] | select(.status == &quot;active&quot;) | {id, name, agentId: .agent.id}&#x27;
+happy_api /v0/projects | jq &#x27;.projects[] | select(.status == &quot;active&quot;)
+    | {id, name, path: .compute.path, agents: [.agents[] | {id, title, status}]}&#x27;
+PROJECT_ID=$(happy_api /v0/projects | jq -r &#x27;[.projects[] | select(.status == &quot;active&quot;)][0].id&#x27;)
+happy_api &quot;/v0/workspaces?projectId=$PROJECT_ID&quot; |
+    jq &#x27;.workspaces[] | {id, name, branch: .git.branch, agents: [.agents[].id]}&#x27;
+</code></pre>
+<p><code>GET /v0/bootstrap/desktop</code> returns config, projects, root and first-level workspaces, bots,
+tasks, Surfaces, and recently archived agents in one response, with a <code>cursor</code> to follow events
+from. One agent, with its subtasks and status:</p>
+<pre><code class="language-sh">AGENT_ID=$CHIEF_ID
+happy_api &quot;/v0/agents/$AGENT_ID&quot; |
+    jq &#x27;.agent | {title, status, canSendMessages, pendingQuestionId, subtasks: [.subtasks[].id]}&#x27;
+</code></pre>
+<p>Bot and task workspaces never appear in <code>/v0/workspaces</code>; reach them through their bot or task.</p>
+<h2 id="skills-and-secrets">Skills and secrets<a class="heading-anchor" href="#skills-and-secrets" aria-label="Link to Skills and secrets"><span aria-hidden="true">#</span></a></h2>
+<p>Global skills come from <code>~/.agents/skills</code>. The API lists, reads, and enables them; installing a
+skill means writing its folder.</p>
+<pre><code class="language-sh">happy_api &#x27;/v0/skills?limit=100&#x27; | jq &#x27;.skills[] | {id, name, enabled, status}&#x27;
+SKILL=$(happy_api &#x27;/v0/skills?limit=100&#x27; | jq -c &#x27;.skills[0]&#x27;)
+happy_send PATCH &quot;/v0/skills/$(jq -r .id &lt;&lt;&lt;&quot;$SKILL&quot;)&quot; &#x27;{&quot;enabled&quot;: false}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$SKILL&quot;)&quot; | jq &#x27;.skill | {name, enabled}&#x27;
+</code></pre>
+<p>Secrets are named environment bundles. Values are write-only: no response ever returns them, so
+read safe metadata and attach secrets to a project, workspace, or exact agent. An attachment only
+makes a secret eligible; a command still names the secrets it uses.</p>
+<pre><code class="language-sh">happy_api /v0/secrets | jq &#x27;.secrets[] | {id, description, environmentVariables, availableToAgents}&#x27;
+SECRET_ID=deploy_api
+happy_send PUT &quot;/v0/secrets/$SECRET_ID/attachments/project/$PROJECT_ID&quot; &#x27;{}&#x27; | jq &#x27;{created}&#x27;
+happy_api &quot;/v0/secrets/$SECRET_ID/attachments&quot; | jq &#x27;.attachments[] | .target&#x27;
+happy_send DELETE &quot;/v0/secrets/$SECRET_ID/attachments/project/$PROJECT_ID&quot; &#x27;{}&#x27; | jq &#x27;{detached}&#x27;
+</code></pre>
+<p>Creating a secret (<code>POST /v0/secrets</code>) puts its value in the request body; build that body from a
+file or variable, never from a literal in a command or a transcript. See Global skills and
+Secrets in <code>API.md</code>.</p>
+<h2 id="message-an-agent-and-read-the-reply">Message an agent and read the reply<a class="heading-anchor" href="#message-an-agent-and-read-the-reply" aria-label="Link to Message an agent and read the reply"><span aria-hidden="true">#</span></a></h2>
+<p>A send needs <code>text</code>, a complete <code>mode</code>, and your own <code>id</code>. Copy the agent&#x27;s last mode; an agent
+that has never had a message returns <code>null</code>, so fall back to the configured defaults:</p>
+<pre><code class="language-sh">MODE=$(happy_api &quot;/v0/agents/$AGENT_ID/mode&quot; | jq -c .mode)
+[ &quot;$MODE&quot; = null ] &amp;&amp; MODE=$(happy_api /v0/config | jq -c &#x27;.config.defaults + {serviceTier: null}&#x27;)
+
+MSG_ID=$(new_id)
+happy_send POST &quot;/v0/agents/$AGENT_ID/send&quot; &quot;$(jq -n --arg id &quot;$MSG_ID&quot; --argjson mode &quot;$MODE&quot; \
+    --arg text &quot;Summarize the open work in three bullets.&quot; &#x27;{id: $id, text: $text, mode: $mode}&#x27;)&quot; |
+    jq &#x27;{id: .message.id, status: .message.status, cursor}&#x27;
+</code></pre>
+<p>The answer is <code>202</code> once the message is durable. Sending the same <code>id</code> again never sends twice, so
+retry a lost response with it. To read the reply, poll history until the run holding your message
+has finished, then print the agent&#x27;s text. Give the loop a deadline in real scripts:</p>
+<pre><code class="language-sh">until RUN=$(happy_api &quot;/v0/agents/$AGENT_ID/messages?omitToolData=true&quot; | jq -e --arg m &quot;$MSG_ID&quot; \
+    &#x27;.runs[] | select(any(.messages[]; .id == $m)) | select(.status != &quot;running&quot;)&#x27;); do
+    sleep 3
+done
+jq &#x27;{status, reason}&#x27; &lt;&lt;&lt;&quot;$RUN&quot;
+jq -r &#x27;.messages[] | select(.role == &quot;agent&quot;) | .content[] | select(.type == &quot;text&quot;) | .text&#x27; &lt;&lt;&lt;&quot;$RUN&quot;
+</code></pre>
+<p>A run ends <code>completed</code>, <code>aborted</code>, or <code>failed</code>. History is grouped by run, newest runs last;
+<code>before=&lt;runId&gt;</code> pages back. A queued message is absent from history until a run accepts it; the
+agent&#x27;s <code>GET /v0/agents/:agentId/bootstrap</code> lists it under <code>pending</code>.</p>
+<p>To watch live instead, follow the event stream. Each frame&#x27;s <code>event:</code> is the type, such as
+<code>run.started</code>, <code>message.delta</code> (streamed text), <code>message.updated</code>, or <code>run.finished</code>:</p>
+<pre><code class="language-sh">CURSOR=$(happy_api &quot;/v0/agents/$AGENT_ID/bootstrap&quot; | jq -r .cursor)
+happy_api &quot;/v0/events/stream?after=$CURSOR&quot; -N --max-time 30 | grep --line-buffered &#x27;^event:&#x27;
+</code></pre>
+<p><code>--max-time</code> ends the stream, so curl reports a timeout (exit 28) when it does.
+<code>GET /v0/events?after=&lt;cursor&gt;</code> pulls the same journal page by page. See Messages and runs,
+<code>send</code>, and Events in <code>API.md</code>.</p>
+<h2 id="steer-stop-answer-and-run-commands">Steer, stop, answer, and run commands<a class="heading-anchor" href="#steer-stop-answer-and-run-commands" aria-label="Link to Steer, stop, answer, and run commands"><span aria-hidden="true">#</span></a></h2>
+<p><code>delivery: &quot;steer&quot;</code> puts a message in front at the next safe boundary instead of waiting for the
+current run; on an idle agent it is the same as the default <code>&quot;queue&quot;</code>:</p>
+<pre><code class="language-sh">happy_send POST &quot;/v0/agents/$AGENT_ID/send&quot; &quot;$(jq -n --arg id &quot;$(new_id)&quot; --argjson mode &quot;$MODE&quot; \
+    &#x27;{id: $id, text: &quot;Stop after the first bullet.&quot;, delivery: &quot;steer&quot;, mode: $mode}&#x27;)&quot; | jq .message.status
+</code></pre>
+<p>Stop the current run, its subagents, and its background processes. <code>expectedRunId</code> is optional and
+makes the abort <code>409</code> if a different run has started since:</p>
+<pre><code class="language-sh">happy_send POST &quot;/v0/agents/$AGENT_ID/abort&quot; &#x27;{}&#x27; | jq &#x27;.agent.status&#x27;
+</code></pre>
+<p>When <code>pendingQuestionId</code> is set, the run waits for a person. Read the question and answer each
+of its prompts by ID with option labels or free text:</p>
+<pre><code class="language-sh">Q=$(happy_api &quot;/v0/agents/$AGENT_ID/question&quot; | jq -c .question)
+jq &#x27;{id, context, questions: [.questions[] | {id, question, options: [.options[].label]}]}&#x27; &lt;&lt;&lt;&quot;$Q&quot;
+happy_send POST &quot;/v0/agents/$AGENT_ID/question/$(jq -r .id &lt;&lt;&lt;&quot;$Q&quot;)/answer&quot; \
+    &quot;$(jq -c &#x27;{answers: {(.questions[0].id): [.questions[0].options[0].label]}}&#x27; &lt;&lt;&lt;&quot;$Q&quot;)&quot; |
+    jq .question.status
+</code></pre>
+<p>Slash commands are listed on the agent and invoked with the same <code>mode</code> as a send. <code>compact</code>
+summarizes older context and is allowed only while the agent is idle:</p>
+<pre><code class="language-sh">happy_api &quot;/v0/agents/$AGENT_ID&quot; | jq &#x27;.slashCommands[] | {name, hasArguments, kind}&#x27;
+happy_send POST &quot;/v0/agents/$AGENT_ID/slash-commands/compact&quot; &quot;$(jq -n --argjson mode &quot;$MODE&quot; &#x27;{mode: $mode}&#x27;)&quot; |
+    jq &#x27;.command.name&#x27;
+</code></pre>
+<p>See Questions, <code>abort</code>, <code>compact</code>, and Slash commands in <code>API.md</code>.</p>
+<h2 id="bots">Bots<a class="heading-anchor" href="#bots" aria-label="Link to Bots"><span aria-hidden="true">#</span></a></h2>
+<p>A bot is one long-lived conversation with its own folder. Creating it creates its workspace and
+agent; the response is ready for a first message. Bot changes need <code>If-Match</code> with the bot&#x27;s
+<code>version</code>.</p>
+<pre><code class="language-sh">BOT=$(happy_send POST /v0/bots &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, name: &quot;Research Assistant&quot;, username: &quot;research_assistant&quot;}&#x27;)&quot; | jq -c .bot)
+BOT_ID=$(jq -r .id &lt;&lt;&lt;&quot;$BOT&quot;); BOT_AGENT_ID=$(jq -r .agent.id &lt;&lt;&lt;&quot;$BOT&quot;)
+BOT_VERSION=$(happy_send PATCH &quot;/v0/bots/$BOT_ID&quot; &#x27;{&quot;name&quot;: &quot;Researcher&quot;}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$BOT&quot;)&quot; | jq -r .bot.version)
+happy_send POST &quot;/v0/bots/$BOT_ID/archive&quot; &#x27;{}&#x27; -H &quot;If-Match: $BOT_VERSION&quot; | jq &#x27;.bot.status&#x27;
+</code></pre>
+<p>Message a bot through its <code>agent.id</code> exactly as above. Omitting <code>name</code> creates <code>New Bot</code>, which
+names itself from its first message. Archive and unarchive go through the bot, never its agent.
+See Bots in <code>API.md</code>.</p>
+<h2 id="tasks">Tasks<a class="heading-anchor" href="#tasks" aria-label="Link to Tasks"><span aria-hidden="true">#</span></a></h2>
+<p>A task is a bot-like conversation for one piece of work, with its own folder. It is created
+idle; give it its work, model, and permission mode with a first send:</p>
+<pre><code class="language-sh">TASK=$(happy_send POST /v0/tasks &quot;$(jq -n --arg id &quot;$(new_id)&quot; &#x27;{id: $id, name: &quot;Fix login redirect&quot;}&#x27;)&quot; |
+    jq -c .task)
+TASK_ID=$(jq -r .id &lt;&lt;&lt;&quot;$TASK&quot;); TASK_AGENT_ID=$(jq -r .agent.id &lt;&lt;&lt;&quot;$TASK&quot;)
+TASK_MODE=$(happy_api /v0/config | jq -c &#x27;.config.defaults + {serviceTier: null}&#x27;)
+happy_send POST &quot;/v0/agents/$TASK_AGENT_ID/send&quot; &quot;$(jq -n --arg id &quot;$(new_id)&quot; --argjson mode &quot;$TASK_MODE&quot; \
+    &#x27;{id: $id, text: &quot;Find why login redirects loop and propose a fix.&quot;, mode: $mode}&#x27;)&quot; | jq .message.status
+</code></pre>
+<p>Rename, archive, and unarchive need <code>If-Match</code> with the task&#x27;s <code>version</code>. Reorder moves the task
+in your own list and needs none:</p>
+<pre><code class="language-sh">TASK_VERSION=$(happy_send PATCH &quot;/v0/tasks/$TASK_ID&quot; &#x27;{&quot;name&quot;: &quot;Fix the login loop&quot;}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$TASK&quot;)&quot; | jq -r .task.version)
+happy_send POST &quot;/v0/tasks/$TASK_ID/reorder&quot; &#x27;{&quot;afterId&quot;: null}&#x27; | jq &#x27;.membership.orderKey&#x27;
+happy_send POST &quot;/v0/tasks/$TASK_ID/archive&quot; &#x27;{}&#x27; -H &quot;If-Match: $TASK_VERSION&quot; | jq &#x27;.task.status&#x27;
+</code></pre>
+<p><code>GET /v0/tasks?scope=joined</code> lists only your own tasks in your order. Subtasks have no creation
+route: an agent creates them with its <code>create_subtask</code> tool, so ask a bot or task to delegate.
+Once created, a subtask appears in its parent&#x27;s <code>subtasks</code> and takes messages like any agent. See
+Tasks in <code>API.md</code>.</p>
+<h2 id="projects-workspaces-and-agents">Projects, workspaces, and agents<a class="heading-anchor" href="#projects-workspaces-and-agents" aria-label="Link to Projects, workspaces, and agents"><span aria-hidden="true">#</span></a></h2>
+<p>Register an existing folder, or clone a plain HTTPS repository into managed storage:</p>
+<pre><code class="language-sh">PROJECT_PATH=&quot;$HOME/Developer/my-app&quot;
+NEW_PROJECT=$(happy_send POST /v0/projects &quot;$(jq -n --arg p &quot;$PROJECT_PATH&quot; &#x27;{path: $p}&#x27;)&quot; | jq -c .project)
+jq &#x27;{id, name, init: .initialization.status}&#x27; &lt;&lt;&lt;&quot;$NEW_PROJECT&quot;
+happy_send POST /v0/projects/clone &#x27;{&quot;name&quot;: &quot;rig&quot;, &quot;source&quot;: {&quot;kind&quot;: &quot;github&quot;, &quot;repository&quot;: &quot;slopus/rig&quot;}}&#x27; |
+    jq &#x27;.project | {id, init: .initialization.status}&#x27;
+</code></pre>
+<p>Both set up in the background: wait for <code>initialization.status</code> to leave <code>&quot;initializing&quot;</code>. A
+workspace is a Git worktree on its own branch under a parent workspace; a project&#x27;s ID is also its
+root workspace&#x27;s ID. Create one, start an agent in it, then rename or archive the workspace with
+<code>If-Match</code>:</p>
+<pre><code class="language-sh">WS_ID=$(happy_send POST /v0/workspaces &quot;$(jq -n --arg p &quot;$PROJECT_ID&quot; --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, parentId: $p, name: &quot;fix-login&quot;}&#x27;)&quot; | jq -r .workspace.id)
+NEW_AGENT_ID=$(happy_send POST /v0/agents &quot;$(jq -n --arg w &quot;$WS_ID&quot; --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, workspaceId: $w, title: &quot;Fix the login loop&quot;}&#x27;)&quot; | jq -r .agent.id)
+WS_VERSION=$(happy_api &quot;/v0/workspaces/$WS_ID&quot; | jq -r .workspace.version)
+WS_VERSION=$(happy_send PATCH &quot;/v0/workspaces/$WS_ID&quot; &#x27;{&quot;name&quot;: &quot;fix-login-v2&quot;}&#x27; \
+    -H &quot;If-Match: $WS_VERSION&quot; | jq -r .workspace.version)
+happy_send POST &quot;/v0/workspaces/$WS_ID/archive&quot; &#x27;{}&#x27; -H &quot;If-Match: $WS_VERSION&quot; | jq &#x27;.workspace.status&#x27;
+</code></pre>
+<p>The workspace answers at once and builds its checkout in the background; its agent can be
+messaged when <code>initialization.status</code> is <code>&quot;ready&quot;</code>. Archiving a workspace stops every agent in
+it. An agent is archived or restored on its own with <code>POST /v0/agents/:agentId/archive</code> and
+<code>/unarchive</code>. A project is archived with <code>POST /v0/projects/:projectId/archive</code> and <code>If-Match</code>;
+an archived project comes back by registering its path again. See Projects and workspaces,
+Workspaces, and Agents in <code>API.md</code>.</p>
+<h2 id="artifacts">Artifacts<a class="heading-anchor" href="#artifacts" aria-label="Link to Artifacts"><span aria-hidden="true">#</span></a></h2>
+<p>Artifacts are published documents, pages, images, and files, each version immutable. Agents
+usually publish them with their artifact tools; people and scripts use these routes.</p>
+<pre><code class="language-sh">happy_api &#x27;/v0/artifacts?limit=20&#x27; | jq &#x27;.artifacts[] | {id, type, title, latestVersion}&#x27;
+ART=$(happy_send POST /v0/artifacts &quot;$(jq -n --arg id &quot;$(new_id)&quot; &#x27;{id: $id, type: &quot;markdown&quot;,
+    title: &quot;Status report&quot;, files: [{path: &quot;index.md&quot;, text: &quot;# Status\n\nAll green.\n&quot;}]}&#x27;)&quot; | jq -c .artifact)
+ART_ID=$(jq -r .id &lt;&lt;&lt;&quot;$ART&quot;)
+happy_api &quot;/v0/artifacts/$ART_ID/versions/latest/files/index.md&quot;
+ART_VERSION=$(happy_send PATCH &quot;/v0/artifacts/$ART_ID&quot; \
+    &#x27;{&quot;files&quot;: [{&quot;path&quot;: &quot;index.md&quot;, &quot;text&quot;: &quot;# Status\n\nOne failing test.\n&quot;}]}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$ART&quot;)&quot; | jq -r .artifact.version)
+happy_send POST &quot;/v0/artifacts/$ART_ID/delete&quot; &#x27;{}&#x27; -H &quot;If-Match: $ART_VERSION&quot; | jq .artifact.status
+</code></pre>
+<p>Binary files go up first with <code>POST /v0/artifact-uploads</code> (raw bytes) and are then placed with
+<code>{ &quot;path&quot;: ..., &quot;uploadId&quot;: ... }</code>. An update starts from the latest version&#x27;s files; <code>remove</code>
+and <code>replaceAll</code> take files out. See Artifacts in <code>API.md</code> for types, limits, and sources.</p>
+<h2 id="surfaces-todos-documents-and-calendars">Surfaces: todos, documents, and calendars<a class="heading-anchor" href="#surfaces-todos-documents-and-calendars" aria-label="Link to Surfaces: todos, documents, and calendars"><span aria-hidden="true">#</span></a></h2>
+<p>Surfaces are shared lists, documents, and calendars. Their IDs are exactly 24 characters, a
+lowercase letter then letters or digits, which <code>new_id</code> produces.</p>
+<pre><code class="language-sh">happy_api /v0/surfaces | jq &#x27;.surfaces[] | {id, type, name}&#x27;
+LIST_ID=$(happy_send POST /v0/surfaces &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, type: &quot;todo&quot;, name: &quot;Release checklist&quot;}&#x27;)&quot; | jq -r .surface.id)
+TODO=$(happy_send POST &quot;/v0/surfaces/todo/$LIST_ID&quot; &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, text: &quot;Tag the release&quot;}&#x27;)&quot; | jq -c .todo)
+happy_send PATCH &quot;/v0/surfaces/todo/$LIST_ID/$(jq -r .id &lt;&lt;&lt;&quot;$TODO&quot;)&quot; &#x27;{&quot;status&quot;: &quot;completed&quot;}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$TODO&quot;)&quot; | jq &#x27;.todo | {text, status}&#x27;
+happy_api &quot;/v0/surfaces/todo/$LIST_ID?scope=all&quot; | jq &#x27;.todos[] | {text, status}&#x27;
+</code></pre>
+<p>Every change to an existing todo, including reorder and <code>DELETE</code>, needs its current <code>version</code> in
+<code>If-Match</code>. Documents are created with Markdown and read back as Markdown; live editing uses
+collaborative updates, so ask an agent with document tools to change one:</p>
+<pre><code class="language-sh">DOC_ID=$(happy_send POST /v0/surfaces &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, type: &quot;document&quot;, name: &quot;Notes&quot;, text: &quot;# Notes\n\nFirst entry.\n&quot;}&#x27;)&quot; | jq -r .surface.id)
+happy_api &quot;/v0/surfaces/document/$DOC_ID&quot; | jq -r .document.text
+</code></pre>
+<p>Calendars hold timed or all-day events. Reading takes an instant range and the viewer&#x27;s time
+zone; changing an event needs <code>If-Match</code>:</p>
+<pre><code class="language-sh">CAL_ID=$(happy_send POST /v0/surfaces &quot;$(jq -n --arg id &quot;$(new_id)&quot; \
+    &#x27;{id: $id, type: &quot;calendar&quot;, name: &quot;Team&quot;}&#x27;)&quot; | jq -r .surface.id)
+EVENT=$(happy_send POST &quot;/v0/surfaces/calendar/$CAL_ID&quot; &#x27;{&quot;title&quot;: &quot;Release review&quot;,
+    &quot;timing&quot;: {&quot;kind&quot;: &quot;allDay&quot;, &quot;startDate&quot;: &quot;2026-11-02&quot;, &quot;endDate&quot;: &quot;2026-11-03&quot;}}&#x27; | jq -c .event)
+happy_send PATCH &quot;/v0/surfaces/calendar/$CAL_ID/$(jq -r .id &lt;&lt;&lt;&quot;$EVENT&quot;)&quot; &#x27;{&quot;location&quot;: &quot;Room 4&quot;}&#x27; \
+    -H &quot;If-Match: $(jq -r .version &lt;&lt;&lt;&quot;$EVENT&quot;)&quot; | jq &#x27;.event | {title, location}&#x27;
+happy_api &quot;/v0/surfaces/calendar/$CAL_ID?from=1793491200000&amp;to=1796083200000&amp;timeZone=UTC&quot; |
+    jq &#x27;.occurrences[] | {eventId, timing}&#x27;
+</code></pre>
+<p>There is no Surface deletion; <code>POST /v0/surfaces/:surfaceId/leave</code> removes one from your sidebar.
+See Surfaces, Document Surfaces, and Calendar Surfaces in <code>API.md</code>.</p>
+<h2 id="what-has-no-rest-route">What has no REST route<a class="heading-anchor" href="#what-has-no-rest-route" aria-label="Link to What has no REST route"><span aria-hidden="true">#</span></a></h2>
+<p>Some things agents do have no HTTP route. Ask an agent to do them in a message instead, usually
+the Chief of Staff:</p>
+<ul>
+<li>scheduling messages, durable waits, and multi-agent workflows;</li>
+<li>creating subtasks, and messaging between agents;</li>
+<li>editing document Surfaces and artifact files in place;</li>
+<li>reading an HTML artifact app&#x27;s error reports (<code>read_artifact_logs</code>).</li>
+</ul>
+<p>MCP servers are configured in files, as the bundled <code>MCP.md</code> describes, and remote connections
+in machine <code>happy.toml</code> (Remote connections in <code>API.md</code>).</p>
+<h2 id="debugging">Debugging<a class="heading-anchor" href="#debugging" aria-label="Link to Debugging"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>Is it up, and which version?</strong> <code>GET /v0/health</code> reports <code>ready</code>, <code>version</code>, and, while
+stopping, <code>draining</code> and <code>shuttingDown</code>. A draining daemon still reads but answers mutations
+<code>503 draining</code>.</li>
+<li><strong>Is my token right?</strong> <code>GET /v0/authentication</code> needs no token and says whether the one you
+sent is valid: <code>happy_api /v0/authentication | jq .authenticated</code>.</li>
+<li><strong>What is the agent doing?</strong> <code>status</code> on <code>GET /v0/agents/:agentId</code> is <code>idle</code>, <code>thinking</code>,
+<code>working</code>, <code>generating_tools</code>, or <code>running_tools</code>. <code>retrying</code> shows automatic provider
+recovery, <code>pendingQuestionId</code> a wait on a person, and <code>wait</code> a scheduled wait.</li>
+<li><strong>Why did a run fail?</strong> Read the latest run with tool data. Failed tool calls show their
+<code>status</code>, and an error <code>service</code> message carries a typed <code>failure</code>:</li>
+</ul>
+<pre><code class="language-sh">happy_api &quot;/v0/agents/$AGENT_ID/messages?limit=10&quot; | jq &#x27;.runs[-1] | {status, reason, messages:
+    [.messages[] | {role, failure: .failure.kind, blocks: [.content[] | {type, name, status}]}]}&#x27;
+</code></pre>
+<ul>
+<li><strong>What did it start?</strong> <code>GET /v0/agents/:agentId/activity</code> lists every subagent and background
+process it spawned, with their states.</li>
+<li><strong>How much did it use?</strong> <code>GET /v0/agents/:agentId/usage</code> gives tokens by provider and model and
+the current context size; <code>GET /v0/usage</code> gives installation-wide windows and provider account
+readings. Each run in history also carries <code>usage</code>, <code>costUsd</code>, <code>startedAt</code>, and <code>endedAt</code>.</li>
+<li><strong>Did I miss events?</strong> A stream&#x27;s <code>hello</code> frame with <code>&quot;gap&quot;: true</code>, or <code>409 cursor_unavailable</code>
+from <code>/v0/events</code>, means the cursor fell out of the bounded journal. Re-read the snapshots you
+rely on, then continue from the cursor the daemon returned.</li>
+<li><strong>Errors</strong> are <code>{ &quot;error&quot;: &quot;...&quot;, &quot;code&quot;: &quot;...&quot; }</code>. Branch on <code>code</code>: <code>invalid_request</code> (400),
+<code>unauthorized</code> (401), <code>forbidden</code> (403), <code>not_found</code> (404), <code>conflict</code> (409: stale <code>If-Match</code>
+or wrong state), <code>draining</code> and <code>remote_unavailable</code> (503). A stale <code>If-Match</code> answer carries
+<code>currentVersion</code> and the current resource, so retry with that version.</li>
+</ul>
+<p>Full details are under Errors, <code>GET /v0/health</code>, Events, and Typed failures in <code>API.md</code>.</p>
+<h2 id="pitfalls">Pitfalls<a class="heading-anchor" href="#pitfalls" aria-label="Link to Pitfalls"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong><code>mode</code> is required.</strong> Copy it from <code>/mode</code> or the config defaults; an unknown or disabled
+model, effort, or service tier is <code>400</code>.</li>
+<li><strong>Retry with the same <code>id</code>.</strong> Sends and the creation of bots, tasks, agents, artifacts,
+Surfaces, todos, and events return the original instead of making a second one. IDs are
+lowercase letters and digits starting with a letter; UUIDs are rejected.</li>
+<li><strong><code>409</code> on send means the agent can&#x27;t receive messages:</strong> it is a hidden subagent or archived.</li>
+<li><strong>Send the version you last read.</strong> Projects, workspaces, bots, tasks, artifacts, secrets,
+todos, calendar events, and the profile need <code>If-Match</code>; agents and sends do not.</li>
+<li><strong>The event journal is bounded.</strong> After a gap, re-read snapshots instead of assuming nothing
+happened.</li>
+<li><strong>Branch on <code>code</code>, not <code>error</code>.</strong> <code>error</code> is display text and may change.</li>
+<li><strong>Archive, don&#x27;t delete,</strong> and don&#x27;t test on real agents: follow
+<a href="https://happy.engineering/recepies/#testing-a-deployed-node">Testing a deployed node</a>.</li>
+</ul></div>

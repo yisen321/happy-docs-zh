@@ -1,0 +1,248 @@
+<div class="document-content"><h1 id="set-up-enterprise-jwt-sign-in">Set up enterprise JWT sign-in<a class="heading-anchor" href="#set-up-enterprise-jwt-sign-in" aria-label="Link to Set up enterprise JWT sign-in"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe when an organization wants its members to sign in to a team-mode Happy Agent with
+the organization&#x27;s own identity provider (Okta, Entra ID, Google Workspace, Keycloak, an internal
+SSO, and so on) instead of Happy&#x27;s WorkOS accounts. The outcome is a team-mode daemon that verifies
+JWT access tokens issued by the organization, and an OAuth authorization server, owned by the
+organization, that the Happy desktop or mobile app signs in with directly.</p>
+<p>Read <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">Team deployment mode</a> first; everything there about installation, Tailcat,
+onboarding, and verification still applies. This recipe replaces only its WorkOS authentication.
+It does not authorize changing the organization&#x27;s identity provider, registering applications in
+it, or publishing a service to the internet; ask the user&#x27;s administrator for that access.</p>
+<p>This requires a Happy Agent release that includes enterprise JWT authentication. Clients detect it
+through <code>GET /v0/authentication</code>; an older daemon answers <code>404</code>.</p>
+<h2 id="how-sign-in-works">How sign-in works<a class="heading-anchor" href="#how-sign-in-works" aria-label="Link to How sign-in works"><span aria-hidden="true">#</span></a></h2>
+<p>It is the same pattern Slack and other desktop apps use for enterprise SSO: the app sends the
+person to the organization&#x27;s sign-in page in the system browser, gets back a short-lived one-time
+code, and exchanges that code for tokens itself.</p>
+<p>The daemon is treated as <strong>untrusted with credentials</strong>. It tells the app where to sign in and
+verifies the access token the app sends it, but it never sees the sign-in code, the PKCE secret,
+or a refresh token.</p>
+<pre><code class="language-text">Happy app                 Happy Agent daemon           Authorization server (deployer)
+   |  GET /v0/authentication  |                                  |
+   |-------------------------&gt;|                                  |
+   |  oauth: authorizationUrl, tokenUrl, refreshUrl, clientId    |
+   |&lt;-------------------------|                                  |
+   |  system browser: authorizationUrl?client_id&amp;redirect_uri&amp;state&amp;code_challenge
+   |------------------------------------------------------------&gt;|  SSO login with the
+   |                          |                                  |  identity provider
+   |  browser redirects to redirect_uri?code=...&amp;state=...       |
+   |&lt;------------------------------------------------------------|
+   |  POST tokenUrl  code + code_verifier                        |
+   |------------------------------------------------------------&gt;|
+   |  access_token (JWT), expires_in, refresh_token?             |
+   |&lt;------------------------------------------------------------|
+   |  Authorization: Bearer &lt;access_token&gt;                       |
+   |-------------------------&gt;|  verify signature, iss, aud, exp; read user ID
+   |          ... later, when the access token expires ...       |
+   |  POST refreshUrl  refresh_token                             |
+   |------------------------------------------------------------&gt;|
+   |  new access_token (and maybe a new refresh_token)           |
+   |&lt;------------------------------------------------------------|
+</code></pre>
+<ol>
+<li>The Happy app asks the daemon how to sign in. Any <code>401</code> from the daemon carries the same
+answer, so the app can start sign-in from any rejected request.</li>
+<li>The daemon returns an <code>oauth</code> method: the authorization, token, and optional refresh
+endpoints, the client ID, and an optional scope, straight from its configuration.</li>
+<li>The app creates a random <code>state</code> and a PKCE verifier, keeps both in memory, and opens the
+authorization endpoint in the <strong>system browser</strong>, never an embedded web view. It shows the
+authorization server&#x27;s host so the person can see where they are signing in.</li>
+<li>The authorization server signs the person in with the identity provider and redirects to the
+app&#x27;s <code>redirect_uri</code> with a <strong>one-time code</strong> and the <code>state</code>. On desktop the redirect URI is a
+loopback address such as <code>http://127.0.0.1:53682/callback</code>; on mobile it is the app&#x27;s own URL
+scheme.</li>
+<li>The app checks <code>state</code> and exchanges the code, together with the PKCE verifier, at the token
+endpoint. Anyone who intercepts the redirect gets only a code that is useless without the
+verifier and expires within seconds.</li>
+<li>The app sends the access token to the daemon on every request. It may keep all tokens only in
+memory.</li>
+<li>Before or when the access token expires, the app sends the refresh token to the refresh
+endpoint, if there is one, and receives a new access token. Without a refresh endpoint, or when
+refresh fails, the app goes through the browser again. That is usually instant while the
+identity provider&#x27;s own session is still valid, which is how an app can keep credentials only
+in memory and still rarely prompt.</li>
+</ol>
+<p>The app sends a refresh token only to the refresh endpoint recorded when it signed in, never to one
+a daemon advertises later. Client code uses <code>beginOAuthSignIn</code>, <code>completeOAuthSignIn</code>, and
+<code>refreshOAuthCredential</code> from <code>@slopus/happy-agent-client</code>; <code>HappyAgentClient</code> accepts a token
+function so a refreshed token applies without recreating the client.</p>
+<h2 id="1-choose-the-authorization-server">1. Choose the authorization server<a class="heading-anchor" href="#1-choose-the-authorization-server" aria-label="Link to 1. Choose the authorization server"><span aria-hidden="true">#</span></a></h2>
+<p>The deployer needs an OAuth 2.0 authorization server that supports the <strong>authorization code flow
+with PKCE</strong> for a public client and issues <strong>JWT access tokens</strong>. There are two ways:</p>
+<ul>
+<li><strong>Use the identity provider directly.</strong> Okta, Entra ID, Auth0, Keycloak, Ping, and most modern
+identity providers do this out of the box. Register a native or public application, allow the
+Happy app&#x27;s redirect URIs, define an API or resource for this deployment so access tokens carry
+its audience, and enable refresh tokens if wanted. No custom code is needed.</li>
+<li><strong>Write a small authorization server</strong> in front of an identity provider that cannot issue
+suitable access tokens, for example a SAML-only one. See step 3.</li>
+</ul>
+<h2 id="2-agree-the-token-contract">2. Agree the token contract<a class="heading-anchor" href="#2-agree-the-token-contract" aria-label="Link to 2. Agree the token contract"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>Issuer</strong> (<code>iss</code>): the authorization server&#x27;s issuer, for example <code>https://sso.acme.example</code>.</li>
+<li><strong>Audience</strong> (<code>aud</code>): a value unique to <strong>this</strong> deployment, for example
+<code>https://happy.acme.example</code>. The daemon sees every token sent to it; a unique audience stops it
+from replaying a member&#x27;s token to another service or another Happy deployment.</li>
+<li><strong>User ID claim</strong>: a stable, never-reused user ID. <code>sub</code> is the default. Prefer an immutable
+object ID over an email address. Values are 1–256 printable characters.</li>
+<li><strong>Owner</strong>: the user ID of the person who should become the deployment owner.</li>
+<li><strong>Client ID</strong> and optional <strong>scope</strong>: whatever the authorization server registered for the
+Happy app. Request <code>offline_access</code> or the provider&#x27;s equivalent if refresh tokens need it.</li>
+<li><strong>Lifetimes</strong>: short access tokens, typically 5–60 minutes, with refresh tokens if the
+organization wants long sessions. Rotate refresh tokens on use where the server supports it.</li>
+<li><strong>Signing key</strong>: prefer an asymmetric key published as a JWKS URL, which every identity provider
+offers. Algorithms: <code>RS256</code>, <code>RS384</code>, <code>RS512</code>, <code>PS256</code>, <code>PS384</code>, <code>PS512</code>, <code>ES256</code>, <code>ES384</code>,
+<code>ES512</code>, <code>EdDSA</code>. A shared secret (<code>HS256</code>, <code>HS384</code>, <code>HS512</code>, at least 32 bytes) is supported,
+but whoever holds it can mint tokens, including the daemon itself. Never use a shared secret
+when the daemon is not fully trusted, and never share one between deployments.</li>
+</ul>
+<p>Every access token must carry <code>iss</code>, <code>aud</code>, <code>exp</code>, and the user ID claim. <code>nbf</code> and <code>iat</code> are
+checked when present. Clocks may differ by up to 30 seconds.</p>
+<h2 id="3-if-you-write-the-authorization-server-yourself">3. If you write the authorization server yourself<a class="heading-anchor" href="#3-if-you-write-the-authorization-server-yourself" aria-label="Link to 3. If you write the authorization server yourself"><span aria-hidden="true">#</span></a></h2>
+<p>Implement three endpoints following RFC 6749, RFC 7636, and RFC 8252. Any OAuth server library can
+do this; the essentials are:</p>
+<p><strong><code>GET /oauth/authorize</code></strong> receives <code>response_type=code</code>, <code>client_id</code>, <code>redirect_uri</code>, <code>state</code>,
+<code>code_challenge</code>, <code>code_challenge_method=S256</code>, and optional <code>scope</code>.</p>
+<ol>
+<li>Check <code>client_id</code> and <strong>check <code>redirect_uri</code> exactly against an allow-list</strong> of the Happy app&#x27;s
+callbacks, for example <code>happy://auth/callback</code> and <code>http://127.0.0.1:&lt;any port&gt;/callback</code>.
+Never redirect anywhere else, not even to report an error.</li>
+<li>Sign the person in with the identity provider, and check that they may use Happy.</li>
+<li>Create a random, single-use code that expires within about a minute, and store it with the user,
+<code>client_id</code>, <code>redirect_uri</code>, and <code>code_challenge</code>.</li>
+<li>Redirect to <code>redirect_uri?code=&lt;code&gt;&amp;state=&lt;state&gt;</code>, copying <code>state</code> unchanged.</li>
+</ol>
+<p><strong><code>POST /oauth/token</code></strong> receives a form with <code>grant_type=authorization_code</code>, <code>code</code>,
+<code>redirect_uri</code>, <code>client_id</code>, and <code>code_verifier</code>. Consume the code, check that <code>client_id</code> and
+<code>redirect_uri</code> match, and check that the base64url SHA-256 of <code>code_verifier</code> equals the stored
+challenge. Respond with JSON:</p>
+<pre><code class="language-json">{
+    &quot;access_token&quot;: &quot;&lt;JWT&gt;&quot;,
+    &quot;token_type&quot;: &quot;Bearer&quot;,
+    &quot;expires_in&quot;: 900,
+    &quot;refresh_token&quot;: &quot;&lt;opaque random string&gt;&quot;
+}
+</code></pre>
+<p>Errors use <code>400</code> with <code>{ &quot;error&quot;: &quot;invalid_grant&quot; }</code> or another OAuth error code.</p>
+<p><strong><code>POST /oauth/refresh</code></strong> (optional; it can also be the token endpoint) receives
+<code>grant_type=refresh_token</code>, <code>refresh_token</code>, and <code>client_id</code>, and responds the same way. Store
+refresh tokens hashed, rotate them on every use, revoke them when a person leaves, and treat reuse
+of a rotated token as theft by revoking the whole session. The refresh endpoint may live on a
+different origin from the other two.</p>
+<p>Minting the access token with <code>jose</code>:</p>
+<pre><code class="language-ts">import { importPKCS8, SignJWT } from &quot;jose&quot;;
+
+const privateKey = await importPKCS8(process.env.HAPPY_SIGNING_KEY!, &quot;ES256&quot;);
+
+export async function accessToken(userId: string): Promise&lt;string&gt; {
+    return await new SignJWT({})
+        .setProtectedHeader({ alg: &quot;ES256&quot;, kid: &quot;happy-2026-09&quot; })
+        .setIssuer(&quot;https://sso.acme.example&quot;)
+        .setAudience(&quot;https://happy.acme.example&quot;)
+        .setSubject(userId)
+        .setIssuedAt()
+        .setExpirationTime(&quot;15m&quot;)
+        .sign(privateKey);
+}
+</code></pre>
+<p>Publish the public key as a JWKS at a stable <code>https</code> URL, include <code>kid</code> in both the key and the
+token header, and rotate by publishing a new key before signing with it. Keep the old key in the
+JWKS until every token it signed has expired, then remove it; the daemon stops accepting it at its
+next download. Serve every endpoint over
+<code>https</code>; plain <code>http</code> is accepted only on a loopback host for local testing.</p>
+<h2 id="4-configure-the-daemon">4. Configure the daemon<a class="heading-anchor" href="#4-configure-the-daemon" aria-label="Link to 4. Configure the daemon"><span aria-hidden="true">#</span></a></h2>
+<p>Follow <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">Team deployment mode</a> to install the binary and bootstrap Tailcat, but
+instead of the WorkOS settings, write the machine <code>happy.toml</code> like this:</p>
+<pre><code class="language-toml">[feature.team]
+enabled = true
+host = &quot;0.0.0.0&quot;
+port = 3000
+authentication = &quot;jwt&quot;
+owner_user_id = &quot;REPLACE_WITH_OWNER_USER_ID&quot;
+
+[feature.team.jwt]
+name = &quot;Acme SSO&quot;
+authorization_url = &quot;https://sso.acme.example/oauth/authorize&quot;
+token_url = &quot;https://sso.acme.example/oauth/token&quot;
+refresh_url = &quot;https://sso.acme.example/oauth/refresh&quot;
+client_id = &quot;happy&quot;
+scope = &quot;happy offline_access&quot;
+issuer = &quot;https://sso.acme.example&quot;
+audience = &quot;https://happy.acme.example&quot;
+user_id_claim = &quot;sub&quot;
+algorithms = [&quot;ES256&quot;]
+jwks_url = &quot;https://sso.acme.example/.well-known/jwks.json&quot;
+jwks_refresh_interval_sec = 3600
+</code></pre>
+<p><code>name</code> is what the Happy app shows on the sign-in button. Leave out <code>refresh_url</code> to turn refresh
+off; leave out <code>scope</code> if the server needs none. Configure exactly one key source:</p>
+<ul>
+<li><code>jwks_url = &quot;https://...&quot;</code> for a published key set (recommended). The daemon downloads the keys
+itself when it starts and again every <code>jwks_refresh_interval_sec</code> seconds (60–86,400, default
+3,600), so no key is written into configuration. A token signed with a key the daemon has not
+seen yet triggers an immediate download, at most every 30 seconds, so rotations apply at once.
+If a download fails, the daemon keeps the last good keys and retries after a minute;
+a key removed from the JWKS stops working at the next successful download;</li>
+<li><code>public_key = &quot;&quot;&quot;-----BEGIN PUBLIC KEY-----...&quot;&quot;&quot;</code> for one PEM public key;</li>
+<li><code>secret_env = &quot;HAPPY_TEAM_JWT_SECRET&quot;</code> for a shared secret, kept in that environment variable of
+the daemon&#x27;s service and never in <code>happy.toml</code>.</li>
+</ul>
+<p>Do not set <code>workos_organization_id</code>, <code>owner_workos_user_id</code>, or <code>workos_client_id</code> with JWT
+authentication; the daemon refuses the combination. Configuration mistakes stop startup with a
+readable message, so read the service log if the daemon does not come up.</p>
+<p>Users are identified by the method and user ID together. A deployment that switches from WorkOS to
+JWT starts with fresh member accounts; existing WorkOS users stay stored but cannot sign in through
+JWT.</p>
+<h2 id="5-verify">5. Verify<a class="heading-anchor" href="#5-verify" aria-label="Link to 5. Verify"><span aria-hidden="true">#</span></a></h2>
+<p>Run these checks from a machine that can reach the daemon, replacing <code>DAEMON</code> with its address.</p>
+<ol>
+<li>
+<p>Discovery answers without a token:</p>
+<pre><code class="language-sh">curl -s &quot;DAEMON/v0/authentication&quot;
+</code></pre>
+<p>Expect <code>&quot;authenticated&quot;: false</code> and one <code>oauth</code> method with the configured endpoints and client
+ID, and no secret, key, or JWKS content.</p>
+</li>
+<li>
+<p>Sign in from the Happy app, or test the flow by hand: open the authorization URL with a
+loopback <code>redirect_uri</code>, a <code>state</code>, and a PKCE challenge, confirm the browser lands on
+<code>redirect_uri?code=...&amp;state=...</code>, and exchange the code at the token endpoint.</p>
+</li>
+<li>
+<p>Call discovery with the access token and expect <code>&quot;authenticated&quot;: true</code>. <code>userId</code> stays <code>null</code>
+until the person saves a profile.</p>
+</li>
+<li>
+<p>Confirm that a tampered, expired, or wrong-audience token gets <code>401</code> with an <code>authentication</code>
+field listing the same method, and that a token for another audience is rejected.</p>
+</li>
+<li>
+<p>If refresh is configured, refresh once and confirm that the new access token works and that the
+old refresh token is rejected when rotation is on.</p>
+</li>
+<li>
+<p>Sign in as the owner in the Happy app, complete onboarding, and run the
+<a href="https://happy.engineering/recepies/#testing-a-deployed-node">deployed-node test</a>. Then sign in as a second member and
+confirm they are not the owner.</p>
+</li>
+</ol>
+<h2 id="troubleshooting">Troubleshooting<a class="heading-anchor" href="#troubleshooting" aria-label="Link to Troubleshooting"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>The browser shows an error instead of redirecting.</strong> The redirect URI is not registered with
+the authorization server, or the client ID is wrong.</li>
+<li><strong>The code exchange fails with <code>invalid_grant</code>.</strong> The code expired or was already used, the
+redirect URI differs from the one used to authorize, or the server does not verify PKCE with
+S256.</li>
+<li><strong>Every access token is rejected right after startup.</strong> The daemon could not download the JWKS:
+check that the daemon can reach <code>jwks_url</code> over <code>https</code> without a redirect, and read the service
+log for the key set warning.</li>
+<li><strong>Every access token is rejected.</strong> Compare <code>iss</code>, <code>aud</code>, <code>alg</code>, and <code>kid</code> with the configuration
+exactly, and check the server clock. Some identity providers issue opaque access tokens unless an
+API or resource audience is requested; the daemon needs a JWT.</li>
+<li><strong>Refresh never happens.</strong> <code>refresh_url</code> is not configured, the token response has no
+<code>refresh_token</code>, or the scope lacks <code>offline_access</code> or its equivalent.</li>
+<li><strong>Someone became the owner unexpectedly.</strong> Owner status comes only from <code>owner_user_id</code> matching
+the token&#x27;s user ID claim.</li>
+</ul>
+<p>Never paste real tokens, codes, private keys, or shared secrets into a conversation, issue, or
+log.</p></div>

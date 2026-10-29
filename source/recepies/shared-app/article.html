@@ -1,0 +1,442 @@
+<div class="document-content"><h1 id="build-a-live-shared-html-artifact">Build a live, shared HTML artifact<a class="heading-anchor" href="#build-a-live-shared-html-artifact" aria-label="Link to Build a live, shared HTML artifact"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe when an <code>html</code> artifact should remember things or be shared: a to-do list, a poll,
+a sign-up sheet, a scoreboard, a small game, or a dashboard that people annotate. Every HTML
+artifact has its own key-value store. The daemon serves the store to the page at <code>/api/*</code> of the
+page&#x27;s own origin, and it pushes every change to every open copy of the page as it happens.</p>
+<p>The exact HTTP contract is the &quot;Artifact data&quot; section of the installed release&#x27;s <code>API.md</code> (in the
+source checkout, <code>packages/happy-agent/API.md</code>). This recipe teaches the browser SDK, which wraps
+that contract and is the right choice for almost every page.</p>
+<h2 id="what-you-get">What you get<a class="heading-anchor" href="#what-you-get" aria-label="Link to What you get"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>One store per artifact.</strong> Every version of the artifact uses the same store, so publishing a
+new version by changing its files keeps the data. Everyone using this Happy Agent shares it:
+each of the user&#x27;s devices, and in team mode every member.</li>
+<li><strong>Who is looking.</strong> <code>happy.user</code> is the viewer: a stable <code>id</code>, plus <code>name</code>, <code>firstName</code>,
+<code>lastName</code>, and <code>photoUrl</code>, each of which may be <code>null</code>. Every write records its author in
+<code>updatedBy</code>, and <code>happy.users.load(ids)</code> turns those IDs into names and photos. Identity always
+comes from the signed-in person; a page cannot claim to be someone else.</li>
+<li><strong>You can read and write it too.</strong> <code>read_artifact_data</code> shows an artifact&#x27;s data with who wrote
+each key, and <code>write_artifact_data</code> sets or deletes a key as you. Use them to report results
+(&quot;who voted for what&quot;), seed starting data, or fix a bad value. Your writes reach every open
+page at once. Their author has <code>kind: &quot;agent&quot;</code> and your bot&#x27;s name, or <code>&quot;Agent&quot;</code>.</li>
+<li><strong>Versions you can read time from.</strong> Every write gets a UUIDv7 <code>version</code>, greater than every
+earlier one in the store. <code>happy.timeOf(version)</code> returns its <code>Date</code>.</li>
+<li><strong>Realtime changes.</strong> Each change from anyone reaches every tracked value within moments.</li>
+<li><strong>Network failures are handled for you.</strong> Writes apply on the page at once and queue while the
+daemon is unreachable. They retry with backoff, and each carries an idempotency ID, so a retry
+after a lost response never applies twice. The change stream reconnects by itself and resumes
+from the last version it saw.</li>
+<li><strong>Problems are reported to you.</strong> The SDK sends uncaught errors, unhandled rejections,
+<code>console.error</code>, <code>console.warn</code>, and its own sync trouble to the artifact&#x27;s debug log, which
+<code>read_artifact_logs</code> shows you with who hit them and on which version.</li>
+</ul>
+<h2 id="rules-that-are-easy-to-get-wrong">Rules that are easy to get wrong<a class="heading-anchor" href="#rules-that-are-easy-to-get-wrong" aria-label="Link to Rules that are easy to get wrong"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>Load the SDK with exactly <code>&lt;script src=&quot;/api/v1/client.js&quot;&gt;&lt;/script&gt;</code>. The daemon serves it, so
+it upgrades with Happy Agent; never copy it into the artifact.</li>
+<li>Always use absolute <code>/api/...</code> URLs. A relative <code>api/...</code> resolves against the page&#x27;s own path
+and does not reach the API.</li>
+<li>Put no files under <code>api/</code> in the artifact. The client showing the page sends <code>/api/*</code> to the
+daemon, so such files are never served.</li>
+<li>Keep everything else in the artifact: no CDNs or other network resources. The page may be
+opened where the internet is unreachable.</li>
+<li>Treat the store as shared and untrusted. Any copy of the page, including older versions, can
+write any key. Validate what you read, and render text with <code>textContent</code>, never <code>innerHTML</code>.</li>
+<li>Design keys so that people rarely write the same key. Give each item its own key
+(<code>todos/&lt;id&gt;</code>) rather than one big array, and give each person their own key where you can
+(<code>votes/&lt;userId&gt;</code>). Use <code>happy.kv.update</code> for anything genuinely shared, such as a counter.</li>
+<li>Unconfirmed writes live only in the page&#x27;s memory and are dropped if the page closes; the
+daemon&#x27;s store is the source of truth.</li>
+<li>Start the page with <code>&lt;link rel=&quot;stylesheet&quot; href=&quot;/api/v1/style.css&quot;&gt;</code> and leave <code>html</code> and
+<code>body</code> without a background, margin, or padding, so the page sits on the surface of whatever
+shows it, in light and dark. An app shown inline is drawn at its full height in the reply, so give it no fixed height
+and nothing that scrolls inside it. Keep the layout flat: no card inside a card, no stack of
+rounded cards, and no coloured stripe down a card&#x27;s left edge. The Happy design system in
+<code>../DESIGN.md</code> has the rest.</li>
+<li>Write the page in order: CSS, then HTML, then scripts at the end of the body, which run only on
+the complete page.</li>
+</ol>
+<h2 id="standard-styles-and-components">Standard styles and components<a class="heading-anchor" href="#standard-styles-and-components" aria-label="Link to Standard styles and components"><span aria-hidden="true">#</span></a></h2>
+<p>Every artifact page can load two more files the daemon serves beside the SDK, so they upgrade
+with Happy Agent too:</p>
+<ul>
+<li><code>/api/v1/style.css</code>, first. With nothing else, the page looks like part of the app: the app&#x27;s
+typeface and sizes, its colours in light and dark, its scrollbars, and plain styles for text,
+links, code, tables, and rules on a transparent page. Every rule has zero specificity, so your
+own CSS always wins; override on purpose, not by habit. Use its variables instead of fixed
+colours, and they carry the app&#x27;s values: <code>--happy-text</code>, <code>--happy-muted</code>, <code>--happy-faint</code>,
+<code>--happy-border</code>, <code>--happy-surface</code>, <code>--happy-accent</code>, <code>--happy-added</code>, <code>--happy-removed</code>,
+<code>--happy-diff-added</code>, <code>--happy-diff-removed</code>, and <code>--happy-chart-1</code> to <code>--happy-chart-6</code>;
+<code>--happy-font</code>, <code>--happy-mono</code>, <code>--happy-font-size</code>, and <code>--happy-line-height</code> for type; and
+<code>--happy-scrollbar-thumb</code>, <code>--happy-scrollbar-thumb-hover</code>, and <code>--happy-scrollbar-size</code> for a
+scrollbar you draw yourself.</li>
+<li>The body is inset by <code>--happy-page-inset</code>: the app&#x27;s content inset beside the chat or on a page
+of its own, and nothing inline, where the page lines up with the reply. So one page fits all
+three; give it no outer margin of its own.</li>
+<li><code>/api/v1/components.js</code>, last. It defines five elements that read what they show from the page.
+In Happy Desktop, diffs and code are drawn with the renderer and styling it uses for them;
+elsewhere they are plain numbered lines without highlighting:</li>
+</ul>
+<pre><code class="language-html">&lt;!-- A unified diff, such as git diff writes, saved as a file of the artifact. --&gt;
+&lt;happy-diff src=&quot;changes.diff&quot;&gt;&lt;/happy-diff&gt;
+&lt;!-- One file of it, and only lines 40–52 of the changed file. --&gt;
+&lt;happy-diff src=&quot;changes.diff&quot; path=&quot;src/app.ts&quot; lines=&quot;40-52&quot;&gt;&lt;/happy-diff&gt;
+
+&lt;!-- Code from a file of the artifact: a header naming it, and only lines 40–52, numbered. --&gt;
+&lt;happy-code src=&quot;src/app.ts&quot; path=&quot;src/app.ts&quot; lines=&quot;40-52&quot;&gt;&lt;/happy-code&gt;
+&lt;!-- A snippet written in the page; language names it, otherwise path or src does. --&gt;
+&lt;happy-code language=&quot;python&quot;&gt;
+    &lt;script type=&quot;text/plain&quot;&gt;
+        def greet(name):
+            return f&quot;Hello, {name}!&quot;
+    &lt;/script&gt;
+&lt;/happy-code&gt;
+&lt;!-- Long lines wrap; nowrap on either element scrolls them instead. --&gt;
+&lt;happy-code src=&quot;src/app.ts&quot; nowrap&gt;&lt;/happy-code&gt;
+
+&lt;!-- The files a diff changes as a tree, with status and counts; clicking one scrolls to its diff. --&gt;
+&lt;happy-files src=&quot;changes.diff&quot;&gt;&lt;/happy-files&gt;
+&lt;happy-files&gt;
+    &lt;script type=&quot;application/json&quot;&gt;
+        [{ &quot;path&quot;: &quot;src/app.ts&quot;, &quot;status&quot;: &quot;modified&quot;, &quot;added&quot;: 12, &quot;removed&quot;: 3 }]
+    &lt;/script&gt;
+&lt;/happy-files&gt;
+
+&lt;!-- &quot;bar&quot;, &quot;hbar&quot;, &quot;line&quot;, or &quot;area&quot;, drawn at the element&#x27;s width; height=&quot;…&quot; sets a plot&#x27;s. --&gt;
+&lt;happy-chart type=&quot;bar&quot;&gt;
+    &lt;script type=&quot;application/json&quot;&gt;
+        {
+            &quot;labels&quot;: [&quot;Mon&quot;, &quot;Tue&quot;],
+            &quot;series&quot;: [{ &quot;name&quot;: &quot;Requests&quot;, &quot;values&quot;: [120, 340] }],
+            &quot;unit&quot;: &quot;rpm&quot;
+        }
+    &lt;/script&gt;
+&lt;/happy-chart&gt;
+
+&lt;!-- Mermaid flowcharts, sequence, state, class, and entity-relationship diagrams. --&gt;
+&lt;happy-diagram&gt;
+    &lt;script type=&quot;text/x-mermaid&quot;&gt;
+        flowchart LR
+            Write --&gt; Version
+    &lt;/script&gt;
+&lt;/happy-diagram&gt;
+</code></pre>
+<p>A page&#x27;s script may set an element&#x27;s <code>source</code> property instead — the diff text, the file list or
+diff text, the chart object, or the diagram text — and the element redraws, so a live app can feed
+a chart from its store. An element that cannot show what it was given says why in its own place.
+Anything else is yours to draw: an SVG in the <code>--happy-*</code> colours fits right in.</p>
+<h2 id="the-sdk">The SDK<a class="heading-anchor" href="#the-sdk" aria-label="Link to The SDK"><span aria-hidden="true">#</span></a></h2>
+<p><code>window.happy</code> exists as soon as the script runs.</p>
+<div class="document-table-wrap"><table><thead><tr><th>Member</th><th>What it does</th></tr></thead><tbody><tr><td><code>happy.ready</code></td><td>A promise that resolves once the viewer is known and the change stream has connected for the first time. It rejects when this Happy Agent has no data API, which older releases do not.</td></tr><tr><td><code>happy.user</code></td><td>The viewer, or <code>null</code> before <code>ready</code>.</td></tr><tr><td><code>happy.status</code>, <code>happy.onStatus(fn)</code></td><td><code>&quot;connecting&quot;</code>, <code>&quot;online&quot;</code>, <code>&quot;syncing&quot;</code> (connected, with writes or reads in flight), <code>&quot;offline&quot;</code> (reconnecting), or <code>&quot;unavailable&quot;</code> (the artifact was deleted, or the API is missing). <code>onStatus</code> returns an unsubscribe function.</td></tr><tr><td><code>happy.pending</code>, <code>happy.flush()</code></td><td>How many writes are not yet confirmed, and a promise that resolves when none are.</td></tr><tr><td><code>happy.timeOf(version)</code></td><td>The <code>Date</code> a version was written.</td></tr><tr><td><code>happy.users.load(ids)</code>, <code>.get(id)</code>, <code>.cached(id)</code></td><td>People by user ID, cached. Each has <code>id</code>, <code>kind</code> (<code>&quot;user&quot;</code>, or <code>&quot;agent&quot;</code> for an agent&#x27;s writes), <code>name</code>, <code>firstName</code>, <code>lastName</code>, and <code>photoUrl</code> (use it directly as an <code>&lt;img src&gt;</code>). Unknown IDs are left out.</td></tr><tr><td><code>happy.kv.trackPrefix(prefix)</code></td><td>A live view of every key under a prefix: <code>entries</code> (in key order, live keys only), <code>get(key)</code>, <code>loaded</code>, <code>pending</code>, <code>synced</code>, <code>subscribe(fn)</code> (called at once and on every change; returns an unsubscribe function), and <code>stop()</code>.</td></tr><tr><td><code>happy.kv.track(key)</code></td><td>A live view of one key: <code>exists</code>, <code>value</code>, <code>version</code>, <code>updatedBy</code>, <code>updatedAt</code>, <code>pending</code>, <code>loaded</code>, <code>synced</code>, <code>subscribe(fn)</code>, <code>set(value, options)</code>, <code>delete(options)</code>, and <code>stop()</code>.</td></tr><tr><td><code>happy.kv.set(key, value, options)</code></td><td>Writes a JSON value. Trackers show it at once with <code>pending: true</code>. Resolves with the confirmed entry. Options: <code>{ ifVersion }</code> writes only while the key is still at that version, and <code>{ ifAbsent: true }</code> only while it holds no value.</td></tr><tr><td><code>happy.kv.delete(key, options)</code></td><td>Deletes a key, with the same options.</td></tr><tr><td><code>happy.kv.update(key, change)</code></td><td>Read, change, and compare-and-set, retried on conflict up to 8 times. <code>change(current)</code> receives the current value, or <code>undefined</code>, and returns the next one; returning <code>undefined</code> deletes the key.</td></tr><tr><td><code>happy.kv.get(key)</code>, <code>.entry(key)</code>, <code>.list(prefix)</code></td><td>One-off reads: a value as this page sees it, a confirmed entry or <code>null</code>, and every confirmed entry under a prefix.</td></tr><tr><td><code>happy.kv.onChange(fn)</code></td><td>Every confirmed change this page hears, from anyone, as an entry. A deletion has <code>deleted: true</code>.</td></tr><tr><td><code>happy.debug.log(message, data, level)</code></td><td>Adds an entry to the artifact&#x27;s debug log with source <code>app</code>. <code>data</code> is optional JSON; <code>level</code> is <code>&quot;info&quot;</code> (the default), <code>&quot;warn&quot;</code>, or <code>&quot;error&quot;</code>. Use it for the events you will want when someone reports a problem.</td></tr><tr><td><code>happy.debug.disable()</code>, <code>happy.debug.flush()</code></td><td>Stop all reporting from this page, or send what is queued now instead of within two seconds.</td></tr></tbody></table></div>
+<p>An entry is <code>{ key, value, deleted, version, updatedBy, updatedAt, writeId }</code>. A tracked view adds
+<code>exists</code> and <code>pending</code>. In a view, <code>updatedBy</code> is the viewer&#x27;s ID while a write is pending.</p>
+<p>A refused write rejects its promise with an <code>Error</code> carrying <code>status</code> and <code>code</code>, and the trackers
+drop the optimistic value. <code>code</code> is <code>&quot;conflict&quot;</code> when an <code>ifVersion</code> or <code>ifAbsent</code> condition
+failed, and <code>error.current</code> then holds the key as it is now. <code>&quot;too_large&quot;</code> means a value is over
+256 KiB, and <code>&quot;storage_full&quot;</code> that the store is over 100,000 keys or 64 MiB. A write that fails
+because of the network is never refused: it waits and retries.</p>
+<p>Keys are 1–512 characters without control characters. Values are any JSON. A deleted key is
+remembered for 30 days so that pages coming back online learn of it; a page offline for longer
+reads the store again, which the SDK does by itself.</p>
+<h2 id="a-complete-example-a-shared-to-do-list">A complete example: a shared to-do list<a class="heading-anchor" href="#a-complete-example-a-shared-to-do-list" aria-label="Link to A complete example: a shared to-do list"><span aria-hidden="true">#</span></a></h2>
+<p>This page lists to-dos from everyone, with each author&#x27;s photo and name, shows the sync state,
+and works offline. Create it with <code>create_artifact</code> as an <code>html</code> artifact and write its
+<code>index.html</code> with <code>write_artifact_file</code> as exactly this:</p>
+<pre><code class="language-html">&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+    &lt;head&gt;
+        &lt;meta charset=&quot;utf-8&quot; /&gt;
+        &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot; /&gt;
+        &lt;title&gt;Shared to-dos&lt;/title&gt;
+        &lt;script src=&quot;/api/v1/client.js&quot;&gt;&lt;/script&gt;
+        &lt;style&gt;
+            :root {
+                color-scheme: light dark;
+            }
+            body {
+                font:
+                    15px/1.4 system-ui,
+                    sans-serif;
+                max-width: 34rem;
+                margin: 2rem auto;
+                padding: 0 1rem;
+            }
+            header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            #status {
+                font-size: 12px;
+                padding: 2px 8px;
+                border-radius: 99px;
+                background: color-mix(in srgb, currentColor 10%, transparent);
+            }
+            #status[data-status=&quot;online&quot;] {
+                background: color-mix(in srgb, green 20%, transparent);
+            }
+            #status[data-status=&quot;offline&quot;],
+            #status[data-status=&quot;unavailable&quot;] {
+                background: color-mix(in srgb, red 20%, transparent);
+            }
+            form {
+                display: flex;
+                gap: 8px;
+                margin: 1rem 0;
+            }
+            input[type=&quot;text&quot;] {
+                flex: 1;
+                padding: 6px 8px;
+            }
+            li {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 0;
+                list-style: none;
+            }
+            li.pending {
+                opacity: 0.6;
+            }
+            li.done .title {
+                text-decoration: line-through;
+                opacity: 0.6;
+            }
+            .title {
+                flex: 1;
+            }
+            .avatar {
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                object-fit: cover;
+                background: color-mix(in srgb, currentColor 20%, transparent);
+            }
+            .meta {
+                font-size: 12px;
+                opacity: 0.7;
+            }
+            ul {
+                padding: 0;
+            }
+        &lt;/style&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;header&gt;
+            &lt;h1&gt;Shared to-dos&lt;/h1&gt;
+            &lt;span id=&quot;status&quot;&gt;Connecting…&lt;/span&gt;
+        &lt;/header&gt;
+        &lt;form id=&quot;add&quot;&gt;
+            &lt;input id=&quot;text&quot; type=&quot;text&quot; placeholder=&quot;Add a to-do&quot; maxlength=&quot;200&quot; required /&gt;
+            &lt;button&gt;Add&lt;/button&gt;
+        &lt;/form&gt;
+        &lt;ul id=&quot;list&quot;&gt;&lt;/ul&gt;
+        &lt;script&gt;
+            const statusLabels = {
+                connecting: &quot;Connecting…&quot;,
+                online: &quot;Synced&quot;,
+                syncing: &quot;Syncing…&quot;,
+                offline: &quot;Offline, changes are saved here&quot;,
+                unavailable: &quot;Unavailable&quot;,
+            };
+            const status = document.getElementById(&quot;status&quot;);
+            function showStatus(value) {
+                status.dataset.status = value;
+                status.textContent = statusLabels[value] || value;
+            }
+            showStatus(happy.status);
+            happy.onStatus(showStatus);
+
+            const todos = happy.kv.trackPrefix(&quot;todos/&quot;);
+
+            document.getElementById(&quot;add&quot;).addEventListener(&quot;submit&quot;, (event) =&gt; {
+                event.preventDefault();
+                const input = document.getElementById(&quot;text&quot;);
+                const title = input.value.trim();
+                if (title === &quot;&quot;) return;
+                // One key per item, so two people adding at once never conflict.
+                happy.kv.set(&quot;todos/&quot; + crypto.randomUUID(), {
+                    title,
+                    done: false,
+                    by: happy.user &amp;&amp; happy.user.id,
+                    at: Date.now(),
+                });
+                input.value = &quot;&quot;;
+            });
+
+            // Load each author once, and draw again when their names and photos arrive.
+            const requested = new Set();
+            function loadAuthors(ids) {
+                const missing = ids.filter((id) =&gt; typeof id === &quot;string&quot; &amp;&amp; !requested.has(id));
+                if (missing.length === 0) return;
+                missing.forEach((id) =&gt; requested.add(id));
+                happy.users
+                    .load(missing)
+                    .then(render, () =&gt; missing.forEach((id) =&gt; requested.delete(id)));
+            }
+
+            function render() {
+                const list = document.getElementById(&quot;list&quot;);
+                list.replaceChildren();
+                const entries = todos.entries
+                    .filter((entry) =&gt; entry.value &amp;&amp; typeof entry.value.title === &quot;string&quot;)
+                    .sort((a, b) =&gt; (a.value.at || 0) - (b.value.at || 0));
+                loadAuthors(entries.map((entry) =&gt; entry.value.by));
+                for (const entry of entries) {
+                    const item = document.createElement(&quot;li&quot;);
+                    item.className =
+                        (entry.value.done ? &quot;done &quot; : &quot;&quot;) + (entry.pending ? &quot;pending&quot; : &quot;&quot;);
+
+                    const box = document.createElement(&quot;input&quot;);
+                    box.type = &quot;checkbox&quot;;
+                    box.checked = entry.value.done === true;
+                    box.addEventListener(&quot;change&quot;, () =&gt; {
+                        happy.kv.update(entry.key, (current) =&gt;
+                            current === undefined ? undefined : { ...current, done: box.checked },
+                        );
+                    });
+
+                    const author = happy.users.cached(entry.value.by);
+                    const avatar = document.createElement(&quot;img&quot;);
+                    avatar.className = &quot;avatar&quot;;
+                    avatar.alt = &quot;&quot;;
+                    if (author &amp;&amp; author.photoUrl) avatar.src = author.photoUrl;
+
+                    const title = document.createElement(&quot;span&quot;);
+                    title.className = &quot;title&quot;;
+                    title.textContent = entry.value.title;
+
+                    const meta = document.createElement(&quot;span&quot;);
+                    meta.className = &quot;meta&quot;;
+                    const when = entry.version ? happy.timeOf(entry.version) : null;
+                    meta.textContent =
+                        (author &amp;&amp; author.firstName ? author.firstName : &quot;Someone&quot;) +
+                        (when
+                            ? &quot; · &quot; +
+                              when.toLocaleTimeString([], { hour: &quot;2-digit&quot;, minute: &quot;2-digit&quot; })
+                            : &quot;&quot;);
+
+                    const remove = document.createElement(&quot;button&quot;);
+                    remove.textContent = &quot;✕&quot;;
+                    remove.title = &quot;Delete&quot;;
+                    remove.addEventListener(&quot;click&quot;, () =&gt; happy.kv.delete(entry.key));
+
+                    item.append(box, avatar, title, meta, remove);
+                    list.append(item);
+                }
+            }
+            todos.subscribe(render);
+
+            happy.ready.then(render, () =&gt; showStatus(&quot;unavailable&quot;));
+        &lt;/script&gt;
+    &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>Open it in two windows, or on two devices, and add a to-do in one: it appears in the other at
+once. Turn the network off, add and tick items, and turn it back on: they sync without
+duplicates.</p>
+<h2 id="other-patterns">Other patterns<a class="heading-anchor" href="#other-patterns" aria-label="Link to Other patterns"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>Poll or reactions:</strong> one key per voter, <code>votes/&lt;happy.user.id&gt;</code>, with the choice as the value.
+Track the <code>votes/</code> prefix and count. Nobody can overwrite anyone else&#x27;s vote by accident.</li>
+<li><strong>Counter or shared total:</strong> <code>happy.kv.update(&quot;score&quot;, (n) =&gt; (n || 0) + 1)</code>.</li>
+<li><strong>Single shared document, such as a board&#x27;s layout:</strong> track the key and write with
+<code>{ ifVersion: tracker.version }</code>. On a <code>&quot;conflict&quot;</code> rejection, show <code>error.current</code> and let the
+person merge or retry.</li>
+<li><strong>Presence (&quot;who is here&quot;):</strong> write <code>presence/&lt;userId&gt;</code> with <code>{ at: Date.now() }</code> every 30
+seconds while the page is visible, and show entries whose <code>updatedAt</code> is recent. Presence keys
+accumulate, so delete your own on <code>pagehide</code>.</li>
+<li><strong>Recent activity:</strong> subscribe with <code>happy.kv.onChange</code> and show <code>updatedBy</code> and
+<code>happy.timeOf(entry.version)</code>.</li>
+<li><strong>Ordering by creation time:</strong> put a UUIDv7-style or timestamp prefix in the key, or sort by
+<code>happy.timeOf(entry.version)</code>, which reflects the latest write.</li>
+</ul>
+<h2 id="without-the-sdk">Without the SDK<a class="heading-anchor" href="#without-the-sdk" aria-label="Link to Without the SDK"><span aria-hidden="true">#</span></a></h2>
+<p>Every SDK call is a plain HTTP request to <code>/api/v1/...</code> on the page&#x27;s origin, as <code>API.md</code> describes:
+<code>GET /api/v1/kv?prefix=</code>, <code>GET</code>, <code>PUT</code>, and <code>DELETE /api/v1/kv/entry?key=</code>,
+<code>GET /api/v1/kv/changes?since=</code>, and Server-Sent Events from <code>GET /api/v1/kv/events?since=</code>. Give a
+write a <code>writeId</code> to make retries safe, use <code>If-Match: &quot;&lt;version&gt;&quot;</code> or <code>If-None-Match: *</code> for
+compare-and-set, and after a <code>reset</code> event read the store again before streaming from its new
+cursor.</p>
+<h2 id="working-with-the-data-yourself">Working with the data yourself<a class="heading-anchor" href="#working-with-the-data-yourself" aria-label="Link to Working with the data yourself"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Seed an app after publishing it: <code>write_artifact_data</code> with the keys and value shapes the page&#x27;s
+script reads, such as <code>todos/&lt;id&gt;</code> with <code>{&quot;title&quot;:&quot;…&quot;,&quot;done&quot;:false,&quot;at&quot;:&lt;ms&gt;}</code>. Pass <code>value</code> as
+JSON text. Use <code>ifAbsent: true</code> so you never replace something a person already made.</li>
+<li>Report on it: <code>read_artifact_data</code> with a <code>prefix</code> lists keys with their values, versions,
+authors, and times; page with <code>pageCursor</code>.</li>
+<li>Change a value people may also be changing: read it, then write with <code>ifVersion</code> set to the
+version you read. If the write is refused, read again and decide; never retry blindly.</li>
+<li>Prefer changing the page when the data&#x27;s shape must change. Old and new versions share one
+store, so a new version must still understand the data the old one wrote.</li>
+</ul>
+<h2 id="debugging-your-app">Debugging your app<a class="heading-anchor" href="#debugging-your-app" aria-label="Link to Debugging your app"><span aria-hidden="true">#</span></a></h2>
+<p>Reporting is automatic. Each page batches what goes wrong and sends it to
+<code>/api/v1/debug/log</code> every two seconds, at most 60 entries a minute; while the browser is offline,
+and when a send fails, the batch is dropped rather than retried. The SDK&#x27;s own <code>sync</code> entries say
+when the change stream ended and reconnected, when a write conflicted or was refused, when the
+page had to read its data again, and when the data became unavailable. The daemon keeps the newest
+1,000 entries of the last 7 days per artifact, beside its data.</p>
+<h3 id="develop-with-happy-agent-artifact-dev">Develop with <code>happy-agent artifact dev</code><a class="heading-anchor" href="#develop-with-happy-agent-artifact-dev" aria-label="Link to Develop with happy-agent artifact dev"><span aria-hidden="true">#</span></a></h3>
+<p>Build and test the app before publishing it, against a local copy of the data API:</p>
+<pre><code class="language-sh">happy-agent artifact dev ./my-app --scratch .context/my-app-data
+</code></pre>
+<p>It serves the folder at <code>http://127.0.0.1:4173/</code>, answers <code>/api/*</code> with the same code, limits, and
+SDK as the daemon, and keeps data and the debug log in the <code>--scratch</code> folder (without it, in a
+temporary folder removed on exit). It never touches the daemon&#x27;s data. Start it through an
+ordinary shell command or workspace terminal, then open the preview through the agent&#x27;s workspace
+proxy, which opens every connection from that agent&#x27;s own machine. Listeners inside a restricted
+command&#x27;s private sandbox are isolated from the workspace proxy.</p>
+<p>Everything the server can do is under <code>/__happy/</code>: an HTML panel at <code>/__happy/</code>, and JSON routes
+for scripts and for you:</p>
+<div class="document-table-wrap"><table><thead><tr><th>Route</th><th>What it does</th></tr></thead><tbody><tr><td><code>/?as=Alice</code></td><td>Opens the app as a made-up person, with a name and a generated photo. Each tab can be someone else; without <code>as</code>, the page is &quot;You&quot;.</td></tr><tr><td><code>GET /__happy/state</code></td><td>The folder, the faults in force, open change streams, and everyone known.</td></tr><tr><td><code>POST /__happy/faults</code></td><td>Any of <code>{ &quot;offline&quot;: true }</code>, <code>{ &quot;latencyMs&quot;: 800 }</code>, <code>{ &quot;failNext&quot;: 3 }</code> (answer <code>503</code> without applying), and <code>{ &quot;dropNext&quot;: 1 }</code> (apply, then lose the response).</td></tr><tr><td><code>POST /__happy/streams/cut</code></td><td>Cuts every open change stream, as a dropped connection does.</td></tr><tr><td><code>POST /__happy/data/write</code></td><td><code>{ &quot;as&quot;: &quot;Bob&quot;, &quot;key&quot;: &quot;todos/1&quot;, &quot;value&quot;: {…} }</code>, or <code>&quot;delete&quot;: true</code>: a write by someone else, live to every page.</td></tr><tr><td><code>POST /__happy/data/seed</code></td><td><code>{ &quot;values&quot;: { &quot;key&quot;: value, … }, &quot;as&quot;: &quot;Bob&quot; }</code> writes several keys.</td></tr><tr><td><code>GET</code> / <code>PUT /__happy/data</code></td><td>Dumps every entry, tombstones and authors included, or replaces the data with such a dump.</td></tr><tr><td><code>POST /__happy/data/reset</code></td><td>Forgets every entry; open pages read their data again.</td></tr><tr><td><code>GET /__happy/logs</code>, <code>DELETE /__happy/logs</code></td><td>The debug log, newest first, with <code>level</code>, <code>user</code> (a name), <code>limit</code>, and <code>pageCursor</code>; or clears it.</td></tr><tr><td><code>GET /__happy/requests</code>, <code>DELETE</code></td><td>The last 500 data requests, newest first: who made them, status, time taken, and any fault applied.</td></tr></tbody></table></div>
+<p>The debug log route itself is never faulted, so the log shows what pages reported during an
+outage. The loop that finds most bugs:</p>
+<ol>
+<li>Start <code>artifact dev</code> and open the app; open it again with <code>?as=Bob</code>.</li>
+<li>Make changes as both people, then make the network bad: go offline, add latency, fail or drop a
+few writes, cut the streams. Check that both pages end up showing the same thing and that
+<code>GET /__happy/data</code> holds what you expect, with no doubled items.</li>
+<li>Read <code>GET /__happy/logs?level=warn</code> and <code>GET /__happy/requests</code> for anything surprising.</li>
+<li>Publish the app&#x27;s files in one <code>update_artifact</code> call, each as a <code>fromPath</code> file such as
+<code>{ &quot;fromPath&quot;: &quot;my-app/index.html&quot;, &quot;path&quot;: &quot;index.html&quot; }</code>, so the call makes one new version.
+<code>create_artifact</code> takes the same <code>files</code> for a new artifact. After people use it, read
+<code>read_artifact_logs</code>, filtered by <code>level</code>, <code>userId</code>, or <code>since</code>, to see what broke for whom.</li>
+</ol>
+<h3 id="reproduce-a-bug-with-real-data">Reproduce a bug with real data<a class="heading-anchor" href="#reproduce-a-bug-with-real-data" aria-label="Link to Reproduce a bug with real data"><span aria-hidden="true">#</span></a></h3>
+<p>Start the server from a copy of a published artifact&#x27;s data:</p>
+<pre><code class="language-sh">happy-agent artifact dev ./my-app --from &lt;artifactId&gt;
+</code></pre>
+<p>It reads the artifact&#x27;s data through the daemon, once, with its versions and authors&#x27; names, and
+never writes back. Where the server cannot reach the daemon, save the copy first and start from
+the file:</p>
+<pre><code class="language-sh">happy-agent artifact snapshot &lt;artifactId&gt; --out .context/my-app-data.json
+happy-agent artifact dev my-app --seed .context/my-app-data.json --scratch .context/my-app-data
+</code></pre>
+<p><code>--seed</code> also takes a plain JSON object of keys and values.</p>
+<h3 id="drive-it-with-a-browser">Drive it with a browser<a class="heading-anchor" href="#drive-it-with-a-browser" aria-label="Link to Drive it with a browser"><span aria-hidden="true">#</span></a></h3>
+<p>For a repeatable check, script real browsers against the dev server with Playwright and headless
+Chromium. Nothing is bundled: install <code>playwright-core</code> (or <code>playwright</code>) in a scratch folder with
+the project&#x27;s package manager, and use a Chromium already on the machine
+(its <code>playwright install chromium</code> command otherwise). A useful script:</p>
+<ul>
+<li>opens one page per person, <code>page.goto(base + &quot;/?as=Alice&quot;)</code>, and waits for
+<code>window.happy.status === &quot;online&quot;</code>;</li>
+<li>records <code>page.on(&quot;console&quot;)</code> errors and warnings, <code>page.on(&quot;pageerror&quot;)</code>, and
+<code>page.on(&quot;requestfailed&quot;)</code>;</li>
+<li>plays a scenario, calling <code>POST /__happy/faults</code> between steps, and waits for each page&#x27;s text to
+converge with <code>page.waitForFunction</code>;</li>
+<li>ends with screenshots, each page&#x27;s visible text, <code>GET /__happy/data</code>, and
+<code>GET /__happy/logs</code>, so you can tell what each person saw and what the store holds.</li>
+</ul>
+<p>Failed requests and console errors during injected faults are expected; anything else is a bug.</p>
+<h2 id="checks-before-you-publish">Checks before you publish<a class="heading-anchor" href="#checks-before-you-publish" aria-label="Link to Checks before you publish"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>The page loads <code>/api/v1/client.js</code> with an absolute path, and the artifact holds no files under
+<code>api/</code> and loads nothing from the internet.</li>
+<li>Item keys are per item or per person, and shared values use <code>update</code> or <code>ifVersion</code>.</li>
+<li>The page shows <code>happy.status</code> and pending items.</li>
+<li>Everything read from the store is validated, and text is rendered with <code>textContent</code>.</li>
+<li>You ran it in <code>happy-agent artifact dev</code> as two people, offline and with lost responses, and
+both pages converged with no doubled items and nothing unexpected in the debug log.</li>
+</ul></div>

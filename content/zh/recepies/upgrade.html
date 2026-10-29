@@ -1,0 +1,114 @@
+<div class="document-content"><h1 id="upgrade-happy-agent">升级 Happy Agent<a class="heading-anchor" href="#upgrade-happy-agent" aria-label="链接到升级 Happy Agent"><span aria-hidden="true">#</span></a></h1>
+<p>本操作配方用于升级现有 Happy Agent 安装，尤其适用于通过<a href="https://happy.engineering/recepies/remote-agent/">部署配方</a>创建的独立远程节点。升级仅替换运行时，不会重新创建服务账户、重新配置提供商、轮换凭据、注册新连接或重复初始设置。请保留用户现有的部署模式和设置。</p>
+<p>默认在获授权的目标及维护窗口内自动执行升级：查明版本、暂存并验证下载文件、排空工作、停止、备份、替换、启动并验证。复用已知设置，仅就缺失的重要选择或访问权限询问用户。以下命令由智能体执行，并非交给用户的手动检查清单。保留所有 <code>[profile]</code> 引导记录及已保存的个人资料；升级时不要重新复制本地个人资料，也不要覆盖远程修改。</p>
+<p>以下具体命令针对该配方的 Linux systemd 安装：可执行文件 <code>/usr/local/bin/happy-agent</code>、服务 <code>happy-agent</code>、主目录 <code>/var/lib/happy-agent</code>。使用前检查实际安装情况。配置与传输详情请阅读<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md" target="_blank" rel="noreferrer">配置</a>及 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/tailcat.md" target="_blank" rel="noreferrer">Tailcat</a> 文档。具体 API 请求以已安装版本的 <code>API.md</code> 为准；在本源码检出目录中，它位于 <code>packages/happy-agent/API.md</code>。</p>
+<h2 id="1-confirm-the-target-and-maintenance-window">1. 确认目标与维护窗口<a class="heading-anchor" href="#1-confirm-the-target-and-maintenance-window" aria-label="链接到 1. 确认目标与维护窗口"><span aria-hidden="true">#</span></a></h2>
+<p>复用已知信息，仅询问缺失的选择：</p>
+<ul>
+<li>要升级哪个安装，升级到哪个已发布版本？若未指定，则查明并使用最新稳定版 <strong>Happy Agent</strong>。不要与库版本混淆，不要创建发布，也不要切换到预发布版或源码构建版。</li>
+<li>服务允许在何时不可用？说明客户端会断开连接，终端或后台进程可能停止。确认如何处理正在进行的工作；不要悄悄取消它们。</li>
+<li>私密备份应存放在哪里、可用空间有多少、应保留多久？未经许可，不要上传到新的目的地。</li>
+</ul>
+<p>通过经过身份验证的健康检查和已安装的可执行文件记录当前版本，并记录目标版本、操作系统/架构、服务用户、可执行文件路径、进程管理器、配置目录、Happy 主目录、工作区路径和连接 ID。替换任何文件前，先解析符号链接及路径/环境变量覆盖设置。私下检查服务定义；环境设置可能包含密钥。</p>
+<p>在 Ubuntu 上，保留管理员批准的 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/permissions-and-sandbox.md#ubuntu-apparmor-host-prerequisite" target="_blank" rel="noreferrer">AppArmor 命名空间许可</a>及其精确的可执行文件路径绑定。将该配置文件纳入停机状态备份。缺少许可是需要批准的主机策略前置条件，不是禁用 AppArmor 或修改全局 sysctl 的理由。升级后，通过实际服务验证沙箱工具。</p>
+<p>阅读已安装版本与拟升级版本之间的全部发行说明。检查操作系统要求、配置变化、数据库迁移或代际重置、提供商变化，以及客户端协议兼容性。有意重置状态的版本不属于常规原地升级：说明数据影响，并暂停等待明确指示。同样，不要为了满足新要求而悄悄升级无关的客户端或提供商。</p>
+<p>通过目标守护进程停止后仍然有效的控制通道执行以下步骤：通常是主机器发起的 SSH，或操作人员的终端，而不是关闭时随之消失的远程连接。智能体绝不能针对自身所运行的守护进程执行这些步骤。由桌面应用管理的安装应通过 Happy Desktop 的版本选择器切换版本；其他安装则请用户通过上述独立通道执行停止和启动。智能体唯一可以对自身守护进程执行的重启是 <code>happy-agent reload --detach</code>，它会保留当前可执行文件；参见<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#applying-configuration-changes" target="_blank" rel="noreferrer">应用配置变更</a>。</p>
+<h2 id="2-capture-a-baseline-and-stage-the-verified-release">2. 记录基线并暂存已验证的发布版本<a class="heading-anchor" href="#2-capture-a-baseline-and-stage-the-verified-release" aria-label="链接到 2. 记录基线并暂存已验证的发布版本"><span aria-hidden="true">#</span></a></h2>
+<p>停机前，确认用户通过正常连接可以访问当前远程节点。记录不含密钥的基线信息：版本、就绪状态、Tailcat 地址/端口（私下记录）、项目和智能体 ID、已启用的提供商与默认模型、个人资料、Git 姓名/邮箱，以及已配置的所选 GitHub 账户。不要将凭据值放入聊天、日志、URL 或命令参数。</p>
+<p>检查磁盘空间是否足以容纳下载文件、解压后的二进制文件、私密备份以及数据库迁移所需空间。下载并验证拟升级版本，但不要让它针对正在使用的状态启动：</p>
+<pre><code class="language-sh">set -eu
+UPGRADE_DOWNLOAD_DIR=&quot;$(mktemp -d)&quot;
+cd &quot;$UPGRADE_DOWNLOAD_DIR&quot;
+UPGRADE_VERSION=&quot;REPLACE_WITH_CONFIRMED_RELEASE_VERSION&quot;
+UPGRADE_TARGET=&quot;linux-x64&quot;
+UPGRADE_ARCHIVE=&quot;happy-agent-$UPGRADE_VERSION-$UPGRADE_TARGET.tar.gz&quot;
+UPGRADE_RELEASE_URL=&quot;https://github.com/slopus/happy-agent/releases/download/v$UPGRADE_VERSION&quot;
+curl -fLO &quot;$UPGRADE_RELEASE_URL/$UPGRADE_ARCHIVE&quot;
+curl -fLO &quot;$UPGRADE_RELEASE_URL/$UPGRADE_ARCHIVE.sha256&quot;
+sha256sum --check &quot;$UPGRADE_ARCHIVE.sha256&quot;
+tar -xzf &quot;$UPGRADE_ARCHIVE&quot;
+&quot;./happy-agent-$UPGRADE_TARGET&quot; --version
+</code></pre>
+<p>ARM64 Linux 主机请选择 <code>linux-arm64</code>。校验和失败、压缩包布局异常或版本不符时应停止。暂时不要对暂存的二进制文件运行 <code>start</code>、<code>run</code> 或 <code>reload</code>：启动可能写入状态或执行迁移。<code>--version</code> 是范围受限的版本检查。也不要使用复制的生产主目录测试；其中包含真实凭据和身份信息，可能重新连接外部服务。</p>
+<h2 id="3-drain-work-and-stop-the-existing-service">3. 排空工作并停止现有服务<a class="heading-anchor" href="#3-drain-work-and-stop-the-existing-service" aria-label="链接到 3. 排空工作并停止现有服务"><span aria-hidden="true">#</span></a></h2>
+<p>与用户协调维护窗口。检查活跃智能体、终端进程、工作区初始化及其他后台工作。关闭前，让重要工作完成，或获得中断它们的明确许可。</p>
+<p>在<strong>目标机器</strong>上，从独立 SSH/操作终端会话中，以守护进程的服务用户身份使用无需令牌的本地命令：</p>
+<pre><code class="language-sh">sudo -u happy-agent -H /usr/local/bin/happy-agent drain
+</code></pre>
+<p>如果此安装覆盖了 <code>HAPPY_HOME_DIR</code>，请保留该设置。此操作不涉及提供商令牌、Happy bearer 令牌、WorkOS 令牌或 HTTP 请求。命令会检查 PID 和私密的本地进程身份，发送 <code>SIGUSR2</code>，报告进度，并且只有排空完成后才成功退出。它同时适用于独立和团队守护进程。状态文件缺失/过期，或旧守护进程不支持时，命令会失败，而不会发送可能具有破坏性的信号；不要忽略非零退出码。</p>
+<p>平滑维护停机分为两个不同阶段：</p>
+<ol>
+<li><strong>排空：</strong><code>SIGUSR2</code> 进入与排空 API 相同的只读边界。新的修改操作会被拒绝。进行中的推理与工具工作会推进到可安全持久化的边界；待处理的工具批次及后续工作会保留在持久存储中，交给下一个守护进程。命令打印 <code>Daemon drain is complete.</code> 后仍让进程保持运行。重复执行是安全的。Ctrl-C 停止的是等待命令，而不是守护进程，也不会撤销守护进程持续生效的排空状态。</li>
+<li><strong>平滑关闭：</strong>排空后，<code>systemctl stop</code> 发送 <code>SIGTERM</code>。守护进程运行具名清理处理器，关闭后台服务/进程及数据库连接，释放传输资源，然后退出。备份前等待进程真正退出。单独发送 <code>SIGTERM</code> 只请求关闭，不会先排空；有工作正在运行时，不要以它代替第 1 步。</li>
+</ol>
+<p>排空不会停止进程管理器或进程。关闭不保证任意 shell 作业成功完成；这些作业需要单独协调。强制终止会跳过平滑清理，绝不能将其描述成等效的维护流程。</p>
+<p>若操作人员偏好直接发送信号，请先验证运行版本支持此操作，再执行：</p>
+<pre><code class="language-sh">sudo systemctl kill --kill-whom=main --signal=SIGUSR2 happy-agent
+sudo -u happy-agent -H /usr/local/bin/happy-agent drain
+</code></pre>
+<p>第一个命令请求排空；第二个等待确认完成并显示进度。只向守护进程的主进程发送信号，不要发给整个服务组。绝不要盲目向旧版本发送 <code>SIGUSR2</code>：没有注册处理器时，操作系统默认行为可能直接终止进程。优先使用 CLI，因为它会在发送信号前检查支持情况和进程身份。本地进度存储在仅所有者可访问的 <code>.happy/agent/drain.json</code> 中，这是临时状态快照，不是凭据，也不能替代 HTTP 身份验证。</p>
+<p>排空完成<strong>并不</strong>表示终端进程、后台命令、现有流或工作区初始化已经结束。应单独确认这些事项。使用有界的状态检查，并告知用户尚待完成的处理器名称/数量。超时是需要检查的阻塞问题，不是强制终止的许可。对于没有信号命令的旧版本，使用该版本支持的、经身份验证的排空 API，并遵循其常规私密凭据处理方式，或协调空闲窗口平滑停止。若版本不支持排空，不要声称已经排空。</p>
+<p>通过现有进程管理器停止服务，以免备份时旧二进制文件被重新启动：</p>
+<pre><code class="language-sh">sudo systemctl stop happy-agent
+sudo systemctl show happy-agent --property=ActiveState --property=SubState --property=MainPID
+</code></pre>
+<p>确认服务处于非活动状态，且其原 PID 及所属进程已退出。考虑任何可能重新启动它的外部看门狗或应用。事先检查进程管理器的停止超时，确保允许平滑关闭；如果发生强制终止，需要另行处理后才能认定快照为干净快照。不要把 <code>kill -9</code> 或 <code>happy-agent kill</code> 当作常规升级步骤。关闭卡住时，先检查有界、脱敏的日志及关闭进度，再继续。</p>
+<h2 id="4-back-up-the-stopped-installation">4. 备份已停止的安装<a class="heading-anchor" href="#4-back-up-the-stopped-installation" aria-label="链接到 4. 备份已停止的安装"><span aria-hidden="true">#</span></a></h2>
+<p>只有守护进程及其他写入方全部停止后，才创建一致的私密备份。仅复制正在运行的 SQLite 数据库不是安全备份。保留整个状态目录树，包括所有 SQLite WAL/SHM 伴随文件，以及配置和凭据。不要为了让备份或升级成功而删除伴随文件或编辑数据库迁移记录。</p>
+<p>对于部署配方的标准路径，可按以下方式创建停机服务备份：</p>
+<pre><code class="language-sh">set -eu
+UPGRADE_BACKUP_DIR=&quot;$(sudo mktemp -d /var/backups/happy-agent-upgrade.XXXXXXXX)&quot;
+sudo chmod 0700 &quot;$UPGRADE_BACKUP_DIR&quot;
+sudo cp -p /usr/local/bin/happy-agent &quot;$UPGRADE_BACKUP_DIR/happy-agent.previous&quot;
+sudo tar -czpf &quot;$UPGRADE_BACKUP_DIR/service-home.tar.gz&quot; \
+  -C /var/lib happy-agent
+sudo cp -p /etc/systemd/system/happy-agent.service &quot;$UPGRADE_BACKUP_DIR/happy-agent.service&quot;
+sudo tar -tzf &quot;$UPGRADE_BACKUP_DIR/service-home.tar.gz&quot; &gt;/dev/null
+</code></pre>
+<p>先确认 <code>/var/backups</code> 可用且空间充足。私下记录最终生成的准确备份路径。本例仅覆盖服务主目录、二进制文件和服务单元。还应将实际的 systemd drop-in 配置、外部环境/凭据文件、被覆盖的 Happy/配置目录，以及此主目录之外的项目或工作树，一并纳入同一次停机状态备份。符号链接并不是目标内容的副本：必须显式包含其引用的 Git 公共目录及外部数据。大型安装应使用获批准的文件系统快照或备份机制，保留所有权、权限、链接和所需 ACL。检查完整性时不要打印敏感文件名或内容。备份或验证失败时，不要安装新二进制文件。</p>
+<p>尤其要原样保留以下所有内容：</p>
+<ul>
+<li>用户编写的 <code>happy.toml</code>、全局指令、MCP 设置、技能和插件；</li>
+<li>由守护进程维护的 <code>runtime.toml</code>，它保存实时覆盖设置，不得丢弃；</li>
+<li>数据库、对话、机器人状态、个人资料、密钥存储及集成凭据；</li>
+<li>独立 API 令牌和 Tailcat 私有身份密钥，以保证现有连接仍有效；</li>
+<li>提供商身份验证文件及其用于刷新令牌的写权限；</li>
+<li>Git/GitHub 配置、仓库数据、工作树元数据及未提交文件；</li>
+<li>团队部署中现有的组织/客户端/所有者设置及端点注册信息。</li>
+</ul>
+<p>不要把这些凭据或身份复制到第二个活动安装中。不要因为二进制文件变化就重新生成它们。可选择创建加密的异机备份，但需使用获批准的目的地；本地备份本身就包含可用于访问账户的密钥。</p>
+<h2 id="5-replace-only-the-runtime-and-start-it-once">5. 只替换运行时并启动一次<a class="heading-anchor" href="#5-replace-only-the-runtime-and-start-it-once" aria-label="链接到 5. 只替换运行时并启动一次"><span aria-hidden="true">#</span></a></h2>
+<p>保持服务停止且备份已验证，将暂存的二进制文件安装到检查确认的可执行文件路径。标准安装应从第 2 步的下载目录执行：</p>
+<pre><code class="language-sh">set -eu
+sudo install -m 0755 &quot;happy-agent-$UPGRADE_TARGET&quot; /usr/local/bin/happy-agent
+/usr/local/bin/happy-agent --version
+sudo systemctl start happy-agent
+sudo systemctl is-active happy-agent
+</code></pre>
+<p>若使用不同 shell，先重新确认先前验证过的准确下载路径和目标。替换或版本检查失败时，让守护进程保持停止，并恢复保存的二进制文件；不要启动安装不完整的可执行文件。保留现有服务用户、主目录、环境、配置目录、权限模式及启动命令。只有确实需要且已批准修改服务定义时，才运行 <code>systemctl daemon-reload</code>。</p>
+<p>其他部署类型请使用平台现有的安装机制：</p>
+<ul>
+<li>macOS 上，暂存匹配的已签名/公证的 <code>darwin-arm64</code> 或 <code>darwin-x64</code> 发布版本，使用 <code>shasum -a 256 -c</code> 验证，并在正确账户下停止/启动现有 launchd 服务。保留路径及钥匙串上下文；绝不要为了强行升级而禁用签名或 Gatekeeper 检查。</li>
+<li>对于独立、脱离终端运行的 CLI 守护进程，使用其现有的 <code>happy-agent stop</code> 停止，确认退出，进行备份，替换可执行文件，再以同一用户和相同环境运行 <code>happy-agent start</code>。不要通过新二进制文件的 <code>start</code> 跳过备份：它可能替换正在运行的不同版本守护进程。</li>
+<li>应用或包管理器管理的守护进程，应通过所属应用或包管理器支持的流程更新，保持相同的软件包来源，并明确指定版本。不要绕过管理器替换受管理的可执行文件，也不要升级无关软件包。</li>
+<li>对于团队服务器，保留团队模式及其进程管理器。独立模式的套接字命令不适用；<code>happy-agent drain</code> 是无需令牌的信号命令，同样适用。使用已配置的 WorkOS 身份执行 HTTP 就绪检查。端点不变时，无需重新创建组织或更新端点。</li>
+</ul>
+<p>不要在受管理的守护进程旁再运行第二个前台或脱离终端的守护进程。只允许启动过程执行该发布版本的正常迁移；绝不要通过手动改写模式版本或删除状态绕过启动错误。</p>
+<h2 id="6-verify-the-upgrade-through-the-real-client-path">6. 通过真实客户端路径验证升级<a class="heading-anchor" href="#6-verify-the-upgrade-through-the-real-client-path" aria-label="链接到 6. 通过真实客户端路径验证升级"><span aria-hidden="true">#</span></a></h2>
+<p>在明确的启动期限内等待经身份验证的健康检查。仅有进程存在、套接字监听或 HTTP 200 并不够：必须确认已就绪、产品版本符合预期，且没有活动的排空或关闭状态。按该版本 API 处理可选字段。验证客户端接受所报告的协议，而不是随意要求客户端与守护进程版本完全一致。</p>
+<p>随后检查：</p>
+<ol>
+<li>主节点的现有连接能够访问升级后的远程节点。Tailcat 地址/端口及凭据关系没有变化；不要通过发布新端点来掩盖身份丢失。</li>
+<li>现有项目、工作区、智能体和机器人 ID 仍能解析，先前对话内容仍可见。个人资料、初始设置、默认模型、权限模式及已启用提供商保持原有配置。仅升级不应要求新建参谋长或重新登录提供商。</li>
+<li>以 <code>POST /v0/providers/:providerId/verify</code> 和 <code>{ &quot;level&quot;: &quot;inference&quot; }</code> 验证用户依赖的每个提供商，结果应为 <code>status: &quot;passed&quot;</code>。这些小请求可能产生费用。不要把 HTTP 200 下的失败结果当作成功，也不要为了通过检查而悄悄切换提供商账户。</li>
+<li>按照<a href="https://happy.engineering/recepies/#testing-a-deployed-node">测试已部署节点</a>执行：无论团队还是独立节点，都在升级节点上创建新的临时项目、工作区和智能体。绝不要复用现有项目或智能体来测试。通过真实客户端连接，在其中运行小型推理任务和无害的 shell/文件检查。每次测试操作前及重新连接后，检查用户是否已归档该临时项目；若已归档，则停止，不恢复也不另建替代项目。验证完成或失败时归档项目，确认归档状态，并报告未完成的清理。已归档的项目保持归档。</li>
+<li>若已配置 GitHub，以服务用户身份访问仓库仍可非交互完成，<code>gh api user --jq .login</code> 返回预期账户，实际生效的 Git 姓名/邮箱仍然正确。除非另获授权，否则不要推送测试提交或替换 Git 凭据。</li>
+</ol>
+<p>检查一段有界的启动日志，查找迁移、身份验证或反复重启错误。展示诊断信息前先脱敏密钥。确认服务仍已启用且运行稳定。未经许可，不要通过重启机器检查升级。</p>
+<h2 id="7-recover-safely-if-verification-fails">7. 验证失败时安全恢复<a class="heading-anchor" href="#7-recover-safely-if-verification-fails" aria-label="链接到 7. 验证失败时安全恢复"><span aria-hidden="true">#</span></a></h2>
+<p>调查期间停止接收用户工作。收集有界诊断信息，判断问题来自可执行文件、环境、身份验证、连接还是持久状态。不要把重新运行设置、清空数据库、轮换令牌、禁用身份验证或启用完全访问作为自动恢复步骤。</p>
+<p>如果新二进制文件从未启动，且持久状态未变，将保存的可执行文件恢复到检查确认的路径，再通过原进程管理器重启。如果新二进制文件曾打开或迁移数据库，<strong>不要</strong>假定旧可执行文件能读取它们。查阅该版本的回滚指导；兼容性未知时，让服务保持停止并请求指示。</p>
+<p>完整回滚可能既需要旧二进制文件，<strong>也</strong>需要与之匹配的停机状态备份。说明恢复备份会丢弃备份后的更改，并在覆盖状态前获得明确授权。将失败的安装另行保留以便恢复，仅还原经过验证的目标路径，并恢复原有所有权/权限，绝不要合并两代数据库。协调令牌刷新轮换和外部副作用：恢复本地备份不会撤销 Git 推送、API 调用或提供商服务器上的凭据轮换。</p>
+<h2 id="8-hand-off-the-result">8. 交接结果<a class="heading-anchor" href="#8-hand-off-the-result" aria-label="链接到 8. 交接结果"><span aria-hidden="true">#</span></a></h2>
+<p>报告安装位置、升级前后版本、已通过的检查、保留的连接与身份、服务状态，以及私密备份位置/保留期限。明确注明待处理工作、失败检查或需要更新的凭据。仅安装好二进制文件不代表升级成功。</p>
+<p>按约定期限保留回滚备份。不要自动删除，也不要在交接中包含其内容或令牌。不再需要时，仅清理确切的下载/暂存产物；删除重要备份必须遵循用户决定的保留安排。</p></div>

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设置企业 JWT 登录 · Happy 中文手册（非官方）</title>
+<meta name="description" content="Happy 非官方中文手册：设置企业 JWT 登录。设置企业 JWT 登录 # 当组织希望成员使用组织自己的身份提供商（Okta、Entra ID、Google Workspace、Keycloak、内部 SSO 等），而不是 Happy 的 WorkOS 账号，登录团队模式 Happy Agent 时，使用本操作指南。最终得到的">
+<meta name="theme-color" content="#f5f0e7">
+<style>
+/* 复用欢迎页配色、双滚动区布局与响应式断点；仅使用系统字体。 */
+:root{color-scheme:light;color:#183f38;background:#f5f0e7;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px}a{color:inherit;text-decoration:none}h1,h2,h3,p{margin-top:0}.site-shell{overflow-x:hidden;overflow-x:clip}.page-width{width:min(1180px,calc(100% - 64px));margin:0 auto}.site-header-wrap{background:#f5f0e7;border-bottom:1px solid transparent;position:sticky;top:0;z-index:40}.site-header{align-items:center;display:flex;justify-content:space-between;min-height:60px}.site-header-brand{align-items:center;display:flex;gap:1.15rem;min-width:0}.wordmark{color:#183f38;font-size:1.05rem;font-weight:700;letter-spacing:-.04em;white-space:nowrap}.wordmark span{color:#e6522c;margin-left:.28em}.site-header nav{align-items:center;display:flex;gap:1.65rem;font-size:.86rem;font-weight:500}.site-header nav>a{opacity:.82}.site-header nav>a:hover{opacity:1}.site-header nav>a[aria-current=page]{opacity:1;text-decoration:underline 2px #e6522c;text-underline-offset:.5em}.nav-github{align-items:center;display:inline-flex;gap:.45rem;height:30px;opacity:1!important;position:relative;transition:color .2s ease}.nav-github:after{content:"";inset:-7px -4px;position:absolute}.nav-github svg{display:block}.nav-github-count{font-family:"DM Mono",monospace;font-size:.76rem;font-weight:500;white-space:nowrap}.nav-github:hover{color:#e6522c}
+.document-site-shell{min-height:100vh}.docs-layout{display:grid;gap:4rem;grid-template-columns:210px minmax(0,760px);min-height:calc(100vh - 61px);padding-bottom:7rem;padding-top:3.5rem}.docs-sidebar{align-self:start;max-height:calc(100vh - 3rem);overflow-y:auto;position:sticky;scrollbar-color:transparent transparent;scrollbar-width:thin;top:1.5rem}.docs-sidebar:hover,.docs-sidebar:focus-within{scrollbar-color:#183f3845 transparent}.docs-navigation{display:grid;gap:1.5rem}.docs-nav-group h2,.docs-nav-fold summary{color:#183f38;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-size:.77rem;font-weight:700;letter-spacing:0;margin:0 0 .5rem}.docs-nav-fold summary{align-items:center;cursor:pointer;display:flex;justify-content:space-between;list-style:none;margin:0;min-height:32px}.docs-nav-fold summary::-webkit-details-marker{display:none}.docs-nav-fold summary:after{border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor;content:"";height:5px;margin-right:.5rem;transform:rotate(-45deg);width:5px;flex:none}.docs-nav-fold[open] summary:after{transform:rotate(45deg)}.docs-nav-fold[open] summary{margin-bottom:.5rem}.docs-nav-fold summary:focus-visible{border-radius:4px;outline:2px solid #e6522c;outline-offset:3px}.docs-nav-group ul{display:grid;gap:.2rem;list-style:none;margin:0;padding:0}.docs-nav-group a{border-radius:7px;color:#557068;display:block;font-size:.78rem;line-height:1.35;padding:.38rem .5rem}.docs-nav-group a:hover{background:#ebe5d9;color:#183f38}.docs-nav-group a[aria-current]{background:#dbe2cd;color:#183f38;font-weight:600}.docs-mobile-navigation{display:none}
+.document-article{min-width:0}.document-content{color:#294c45;font-size:1rem;line-height:1.75}.document-content h1,.document-content h2,.document-content h3{color:#183f38;font-family:"Space Grotesk","DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:600;letter-spacing:-.025em;text-wrap:balance}.document-content h1[id],.document-content h2[id],.document-content h3[id]{scroll-margin-top:2rem}.document-content h1{font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.15;margin:0 0 1.2rem}.document-content h2{border-top:1px solid #ddd6c8;font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.15;margin:4rem 0 1.2rem;padding-top:2.2rem}.document-content .heading-anchor{color:#e6522c;font-size:.7em;margin-left:.35em;opacity:0;text-decoration:none}.document-content h1:hover .heading-anchor,.document-content h2:hover .heading-anchor,.document-content .heading-anchor:focus{opacity:.55}.document-content .heading-anchor:hover{opacity:1}.document-content p{margin:0 0 1.25rem;text-wrap:pretty}.document-content>p:first-of-type{color:#557068;font-size:1.08rem}.document-content strong{color:#183f38;font-weight:700}.document-content a{color:#d94725;text-decoration:underline;text-decoration-color:#d9472559;text-underline-offset:.2em}.document-content a:hover{text-decoration-color:currentColor}.document-content ul{margin:0 0 1.4rem;padding-left:1.45rem}.document-content li{margin:.35rem 0;padding-left:.2rem}.document-content li::marker{color:#e6522c}
+/* 其他文档中的表格、命令与媒体保持完整，窄屏允许横向滚动。 */
+.document-content pre{background:#ebe5d9;border:1px solid #d9d3c5;border-radius:8px;overflow-x:auto;padding:1.1rem;white-space:pre;font-size:.85rem;line-height:1.6}.document-content code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.document-content pre code{overflow-wrap:normal}.document-content img,.document-content video{max-width:100%;height:auto}.document-content iframe{max-width:100%}.document-content table{display:block;max-width:100%;overflow-x:auto;border-collapse:collapse;margin:1.5rem 0}.document-content th,.document-content td{border:1px solid #d9d3c5;padding:.65rem .85rem;text-align:left}.document-content blockquote{border-left:3px solid #e6522c;margin:1.5rem 0;padding:.25rem 1rem;color:#557068}
+.document-pagination{border-top:1px solid #d9d3c5;display:grid;gap:1rem;grid-template-columns:1fr 1fr;margin-top:5rem;padding-top:1.5rem}.document-pagination a{border:1px solid #d5cebf;border-radius:10px;color:#183f38;font-size:.88rem;font-weight:600;padding:1rem}.document-pagination a:hover{border-color:#183f38}.document-pagination a span{color:#6b7f78;display:block;font-family:"DM Mono",monospace;font-size:.58rem;font-weight:500;letter-spacing:.06em;margin-bottom:.25rem;text-transform:uppercase}.document-pagination-next{text-align:right}
+.site-footer{background:#f0ebe0;border-top:1px solid #d9d3c5;padding:3.5rem 0}.footer-inner{display:grid;gap:2.5rem;grid-template-columns:1.4fr 1fr;align-items:start}.footer-statement{font-family:"Space Grotesk","DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:500;font-size:1.3rem;letter-spacing:-.01em;line-height:1.4;margin:0;max-width:30ch}.footer-meta{text-align:right}.footer-meta p{color:#47645e;font-size:.78rem;margin:.6rem 0 0}.footer-meta .footer-descriptor{color:#183f38;font-size:.9rem;margin-top:.45rem}.footer-links{display:flex;flex-wrap:wrap;font-size:.8rem;gap:.6rem 1.25rem;justify-content:flex-end;margin-bottom:1.1rem}.footer-links a{border-bottom:1px solid transparent}.footer-links a:hover{border-color:currentColor}.footer-links .footer-link-quiet{color:#6b7f78}.footer-people{display:block;margin-top:.85rem;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-size:.95rem;font-weight:400}.footer-people a{text-decoration:underline;text-underline-offset:3px}
+@media(min-width:761px){.docs-shell{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}.docs-shell .site-header-wrap{flex:0 0 auto}.docs-shell .docs-layout{flex:1 1 auto;margin:0;max-width:none;min-height:0;overflow:hidden;padding:0 0 0 max(32px,calc((100% - 1180px)/2));width:100%;grid-template-columns:210px minmax(0,1fr);column-gap:0}.docs-shell .docs-sidebar{align-self:stretch;height:100%;max-height:none;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:1.75rem 2px 3rem;position:static}.docs-shell .document-article{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:1.75rem 0 0 4rem;position:relative;scrollbar-width:thin;scrollbar-color:#183f3845 transparent}.docs-shell .document-article>.document-content,.docs-shell .document-article>.document-pagination{max-width:760px;padding-right:2rem}.docs-shell .site-footer{margin-top:4.5rem}.docs-shell .site-footer .footer-inner{margin:0;max-width:none;padding:0 3rem 0 2.5rem;width:auto}}
+@media(min-width:761px) and (max-width:900px){.docs-shell .docs-layout{grid-template-columns:190px minmax(0,1fr)}.docs-shell .document-article{padding-left:2.5rem}}
+@media(max-width:900px){.site-header nav{gap:1.2rem}}
+@media(max-width:760px){.page-width{width:min(100% - 40px,620px)}.site-header{gap:.75rem;min-height:52px}.site-header nav{gap:.85rem;font-size:.8rem}.site-header-brand{gap:.6rem}.footer-inner{grid-template-columns:1fr;gap:2rem}.footer-meta{text-align:left}.footer-links{justify-content:flex-start}.docs-mobile-navigation{border-bottom:1px solid #d9d3c5;display:block;padding-bottom:.25rem;padding-top:.25rem}.docs-mobile-trail{align-items:center;appearance:none;background:none;border:0;border-radius:7px;color:#183f38;cursor:pointer;display:flex;font-family:"DM Mono",monospace;font-size:12px;font-weight:500;gap:.5rem;letter-spacing:.06em;min-height:44px;padding:0;text-align:left;text-transform:uppercase;width:100%}.docs-mobile-trail:after{border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor;box-sizing:border-box;content:"";flex:none;height:6px;margin:0 4px 0 auto;transform:translateY(-1.5px) rotate(45deg);transition:transform .15s;width:6px}.docs-mobile-trail[aria-expanded=true]:after{transform:translateY(1.5px) rotate(-135deg)}.docs-mobile-trail:focus-visible{outline:2px solid #e6522c;outline-offset:2px}.docs-mobile-trail>span{flex:none}.docs-mobile-trail-group{color:#6b7f78}.docs-mobile-trail>.docs-mobile-trail-page{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.docs-mobile-menu{padding:.5rem 0 1rem}.docs-mobile-navigation .docs-navigation{gap:1.1rem;grid-template-columns:repeat(2,minmax(0,1fr))}.docs-sidebar{display:none}.docs-layout{display:block;min-height:0;padding-bottom:5rem;padding-top:2.5rem}.docs-shell{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}.docs-shell .docs-layout{display:flex;flex:1 0 auto;flex-direction:column;padding-bottom:0}.docs-shell .document-article{display:flex;flex:1 0 auto;flex-direction:column}.docs-shell .document-article>*{min-width:0}.docs-shell .document-pagination{margin-bottom:4rem}.docs-shell .site-footer{margin:auto calc(50% - 50vw) 0}.document-content h1[id],.document-content h2[id]{scroll-margin-top:72px}.document-content h2{margin-top:3.2rem}}
+@media(max-width:420px){.site-header nav{gap:.7rem}.site-header-brand{gap:.55rem}.wordmark{font-size:.98rem}.nav-github{gap:.35rem}.docs-mobile-navigation .docs-navigation,.document-pagination{grid-template-columns:1fr}.document-pagination-next{text-align:left}}
+
+</style>
+</head>
+<body><div id="app"><div class="site-shell document-site-shell docs-shell">
+<div class="site-header-wrap"><header class="site-header page-width" id="top"><div class="site-header-brand"><a class="wordmark" href="https://happy.engineering/" aria-label="Happy Engineering 官方首页">Happy<span>Engineering</span></a></div><nav aria-label="主导航"><a href="../../index.html" aria-current="page">文档</a><a class="nav-github" href="https://github.com/slopus/happy" target="_blank" rel="noopener noreferrer" aria-label="GitHub 上的 Happy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg><span class="nav-github-count">24k</span></a></nav></header></div>
+<div class="docs-mobile-navigation page-width"><button type="button" class="docs-mobile-trail" aria-expanded="false" aria-controls="docs-mobile-menu"><span class="docs-mobile-trail-group">操作配方（面向智能体）</span><span aria-hidden="true">/</span><span class="docs-mobile-trail-page">设置企业 JWT 登录</span></button><div id="docs-mobile-menu" class="docs-mobile-menu" hidden><nav class="docs-navigation" aria-label="文档导航"><section class="docs-nav-group"><h2>从这里开始</h2><ul><li><a href="../../index.html">欢迎</a></li><li><a href="../../quick-start/index.html">快速开始</a></li><li><a href="../../chief-of-staff/index.html">参谋长</a></li><li><a href="../../how-it-works/index.html">工作原理</a></li><li><a href="../../vision/index.html">愿景</a></li><li><a href="../../team/index.html">团队</a></li></ul></section>
+<section class="docs-nav-group"><h2>功能</h2><ul><li><a href="../../models/index.html">模型与订阅</a></li><li><a href="../../permissions/index.html">权限与沙箱</a></li><li><a href="../../secrets/index.html">密钥管理</a></li><li><a href="../../workspaces/index.html">项目与工作区</a></li><li><a href="../../agents/index.html">永不终止的智能体</a></li><li><a href="../../mobile/index.html">移动端访问</a></li><li><a href="../../multiplayer/index.html">多人协作与团队</a></li><li><a href="../../extending/index.html">技能与 MCP</a></li></ul></section>
+<section class="docs-nav-group"><h2>指南</h2><ul><li><a href="../../guides/terminal/index.html">原版 Happy CLI</a></li><li><a href="../../guides/configuration/index.html">配置</a></li><li><a href="../../guides/remote-server/index.html">远程服务器</a></li></ul></section>
+<section class="docs-nav-group"><h2>博客</h2><ul><li><a href="../../workos/index.html">通过 WorkOS 实现团队登录</a></li><li><a href="../../tailcat/index.html">无需开放端口：Tailcat</a></li><li><a href="../../voice/index.html">通过 ElevenLabs 实现语音交互</a></li><li><a href="../../updates/index.html">在交互轮次中途更新</a></li><li><a href="../../stem-cell/index.html">干细胞</a></li></ul></section>
+<section class="docs-nav-group"><h2>对比</h2><ul><li><a href="../../desktop-app/index.html">适用于 Claude Code 与 Codex 的桌面应用</a></li><li><a href="../../mobile-app/index.html">在手机上使用 Claude Code</a></li><li><a href="../../claude-code-remote-control/index.html">Happy 与 Remote Control 对比</a></li><li><a href="../../t3-code/index.html">Happy 与 T3 Code 对比</a></li></ul></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>更新日志</summary><ul><li><a href="../../changelog/index.html">更新日志</a></li></ul></details></section>
+<section class="docs-nav-group"><details class="docs-nav-fold" open><summary>操作配方（面向智能体）</summary><ul><li><a href="../index.html">操作配方</a></li><li><a href="../first-project/index.html">从一个项目开始</a></li><li><a href="../mobile-access/index.html">设置或修复移动端访问</a></li><li><a href="../accounts-and-models/index.html">账号、模型、推理强度与服务层级</a></li><li><a href="../harnesses/index.html">运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体</a></li><li><a href="../wsl/index.html">在 Windows 中设置 WSL 项目</a></li><li><a href="../telegram/index.html">将机器人接入 Telegram</a></li><li><a href="../chat-bridge/index.html">将机器人接入任意聊天服务</a></li><li><a href="../bot-settings/index.html">通过机器人设置限制机器人</a></li><li><a href="../shared-app/index.html">构建实时共享的 HTML 产物</a></li><li><a href="../peer-messaging/index.html">通过单个 WebSocket 连接两个 Happy 智能体</a></li><li><a href="../rest-api/index.html">通过 REST API 驱动 Happy 智能体</a></li><li><a href="../remote-agent/index.html">部署独立的远程智能体</a></li><li><a href="../team/index.html">创建并部署 Happy 团队</a></li><li><a href="../runner/index.html">添加专用运行节点</a></li><li><a href="../hardening/index.html">使用独立 Linux 用户加固节点</a></li><li><a href="index.html" aria-current="page">设置企业 JWT 登录</a></li><li><a href="../upgrade/index.html">升级 Happy 智能体</a></li></ul></details></section></nav></div></div>
+<main class="docs-layout page-width"><aside class="docs-sidebar"><nav class="docs-navigation" aria-label="文档导航"><section class="docs-nav-group"><h2>从这里开始</h2><ul><li><a href="../../index.html">欢迎</a></li><li><a href="../../quick-start/index.html">快速开始</a></li><li><a href="../../chief-of-staff/index.html">参谋长</a></li><li><a href="../../how-it-works/index.html">工作原理</a></li><li><a href="../../vision/index.html">愿景</a></li><li><a href="../../team/index.html">团队</a></li></ul></section>
+<section class="docs-nav-group"><h2>功能</h2><ul><li><a href="../../models/index.html">模型与订阅</a></li><li><a href="../../permissions/index.html">权限与沙箱</a></li><li><a href="../../secrets/index.html">密钥管理</a></li><li><a href="../../workspaces/index.html">项目与工作区</a></li><li><a href="../../agents/index.html">永不终止的智能体</a></li><li><a href="../../mobile/index.html">移动端访问</a></li><li><a href="../../multiplayer/index.html">多人协作与团队</a></li><li><a href="../../extending/index.html">技能与 MCP</a></li></ul></section>
+<section class="docs-nav-group"><h2>指南</h2><ul><li><a href="../../guides/terminal/index.html">原版 Happy CLI</a></li><li><a href="../../guides/configuration/index.html">配置</a></li><li><a href="../../guides/remote-server/index.html">远程服务器</a></li></ul></section>
+<section class="docs-nav-group"><h2>博客</h2><ul><li><a href="../../workos/index.html">通过 WorkOS 实现团队登录</a></li><li><a href="../../tailcat/index.html">无需开放端口：Tailcat</a></li><li><a href="../../voice/index.html">通过 ElevenLabs 实现语音交互</a></li><li><a href="../../updates/index.html">在交互轮次中途更新</a></li><li><a href="../../stem-cell/index.html">干细胞</a></li></ul></section>
+<section class="docs-nav-group"><h2>对比</h2><ul><li><a href="../../desktop-app/index.html">适用于 Claude Code 与 Codex 的桌面应用</a></li><li><a href="../../mobile-app/index.html">在手机上使用 Claude Code</a></li><li><a href="../../claude-code-remote-control/index.html">Happy 与 Remote Control 对比</a></li><li><a href="../../t3-code/index.html">Happy 与 T3 Code 对比</a></li></ul></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>更新日志</summary><ul><li><a href="../../changelog/index.html">更新日志</a></li></ul></details></section>
+<section class="docs-nav-group"><details class="docs-nav-fold" open><summary>操作配方（面向智能体）</summary><ul><li><a href="../index.html">操作配方</a></li><li><a href="../first-project/index.html">从一个项目开始</a></li><li><a href="../mobile-access/index.html">设置或修复移动端访问</a></li><li><a href="../accounts-and-models/index.html">账号、模型、推理强度与服务层级</a></li><li><a href="../harnesses/index.html">运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体</a></li><li><a href="../wsl/index.html">在 Windows 中设置 WSL 项目</a></li><li><a href="../telegram/index.html">将机器人接入 Telegram</a></li><li><a href="../chat-bridge/index.html">将机器人接入任意聊天服务</a></li><li><a href="../bot-settings/index.html">通过机器人设置限制机器人</a></li><li><a href="../shared-app/index.html">构建实时共享的 HTML 产物</a></li><li><a href="../peer-messaging/index.html">通过单个 WebSocket 连接两个 Happy 智能体</a></li><li><a href="../rest-api/index.html">通过 REST API 驱动 Happy 智能体</a></li><li><a href="../remote-agent/index.html">部署独立的远程智能体</a></li><li><a href="../team/index.html">创建并部署 Happy 团队</a></li><li><a href="../runner/index.html">添加专用运行节点</a></li><li><a href="../hardening/index.html">使用独立 Linux 用户加固节点</a></li><li><a href="index.html" aria-current="page">设置企业 JWT 登录</a></li><li><a href="../upgrade/index.html">升级 Happy 智能体</a></li></ul></details></section></nav></aside>
+<article class="document-article" data-document="recepies/enterprise-sign-in"><div class="document-content"><div class="document-content"><h1 id="set-up-enterprise-jwt-sign-in">设置企业 JWT 登录<a class="heading-anchor" href="#set-up-enterprise-jwt-sign-in" aria-label="链接到 设置企业 JWT 登录"><span aria-hidden="true">#</span></a></h1>
+<p>当组织希望成员使用组织自己的身份提供商（Okta、Entra ID、Google Workspace、Keycloak、内部 SSO 等），而不是 Happy 的 WorkOS 账号，登录团队模式 Happy Agent 时，使用本操作指南。最终得到的是一个验证组织签发的 JWT 访问令牌的团队模式守护进程，以及一个由组织拥有、供 Happy 桌面或移动应用直接登录的 OAuth 授权服务器。</p>
+<p>请先阅读<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">团队部署模式</a>；其中关于安装、Tailcat、首次设置和验证的所有说明仍然适用。本指南只替换其中的 WorkOS 认证方式。它不授权修改组织的身份提供商、在其中注册应用，或将服务发布到互联网；请向用户所在组织的管理员申请相应权限。</p>
+<p>此功能要求 Happy Agent 发布版包含企业 JWT 认证。客户端通过 <code>GET /v0/authentication</code> 检测支持情况；旧版守护进程会返回 <code>404</code>。</p>
+<h2 id="how-sign-in-works">登录如何工作<a class="heading-anchor" href="#how-sign-in-works" aria-label="链接到 登录如何工作"><span aria-hidden="true">#</span></a></h2>
+<p>这与 Slack 及其他桌面应用使用企业 SSO 的方式相同：应用通过系统浏览器将用户带到组织的登录页面，取得短时有效的一次性授权码，再自行用该授权码换取令牌。</p>
+<p>守护进程被视为<strong>不可信任其接触凭据</strong>。它告诉应用在哪里登录，并验证应用发送来的访问令牌，但绝不会看到登录授权码、PKCE 秘密或刷新令牌。</p>
+<pre><code class="language-text">Happy app                 Happy Agent daemon           Authorization server (deployer)
+   |  GET /v0/authentication  |                                  |
+   |-------------------------&gt;|                                  |
+   |  oauth: authorizationUrl, tokenUrl, refreshUrl, clientId    |
+   |&lt;-------------------------|                                  |
+   |  system browser: authorizationUrl?client_id&amp;redirect_uri&amp;state&amp;code_challenge
+   |------------------------------------------------------------&gt;|  SSO login with the
+   |                          |                                  |  identity provider
+   |  browser redirects to redirect_uri?code=...&amp;state=...       |
+   |&lt;------------------------------------------------------------|
+   |  POST tokenUrl  code + code_verifier                        |
+   |------------------------------------------------------------&gt;|
+   |  access_token (JWT), expires_in, refresh_token?             |
+   |&lt;------------------------------------------------------------|
+   |  Authorization: Bearer &lt;access_token&gt;                       |
+   |-------------------------&gt;|  verify signature, iss, aud, exp; read user ID
+   |          ... later, when the access token expires ...       |
+   |  POST refreshUrl  refresh_token                             |
+   |------------------------------------------------------------&gt;|
+   |  new access_token (and maybe a new refresh_token)           |
+   |&lt;------------------------------------------------------------|
+</code></pre>
+<ol>
+<li>Happy 应用询问守护进程如何登录。守护进程返回的任何 <code>401</code> 都携带相同的回答，因此应用可以从任意被拒绝的请求发起登录。</li>
+<li>守护进程返回一种 <code>oauth</code> 方式：直接取自配置的授权端点、令牌端点、可选刷新端点、客户端 ID，以及可选的权限范围。</li>
+<li>应用创建随机的 <code>state</code> 和 PKCE 校验值，将二者保存在内存中，并在<strong>系统浏览器</strong>中打开授权端点，绝不使用内嵌 Web 视图。应用会显示授权服务器的主机名，让用户看清自己正在何处登录。</li>
+<li>授权服务器通过身份提供商完成用户登录，然后重定向到应用的 <code>redirect_uri</code>，并携带<strong>一次性授权码</strong>和 <code>state</code>。桌面端的重定向 URI 是类似 <code>http://127.0.0.1:53682/callback</code> 的回环地址；移动端则是应用自己的 URL 协议。</li>
+<li>应用检查 <code>state</code>，然后在令牌端点提交授权码及 PKCE 校验值，换取令牌。即使有人截获重定向，也只会得到一个没有校验值就毫无用处、且数秒内就会失效的授权码。</li>
+<li>应用在每次请求时将访问令牌发送给守护进程。它可以只将所有令牌保存在内存中。</li>
+<li>访问令牌到期前或到期时，如果配置了刷新端点，应用会向该端点发送刷新令牌，取得新的访问令牌。没有刷新端点或刷新失败时，应用会再次通过浏览器登录。只要身份提供商自身的会话仍然有效，这个过程通常会立即完成，所以应用即使只在内存中保存凭据，也很少需要提示用户操作。</li>
+</ol>
+<p>应用只会把刷新令牌发送到登录时记录的刷新端点，绝不会发送到守护进程后来公布的其他端点。客户端代码使用 <code>@slopus/happy-agent-client</code> 中的 <code>beginOAuthSignIn</code>、<code>completeOAuthSignIn</code> 和 <code>refreshOAuthCredential</code>；<code>HappyAgentClient</code> 接受令牌函数，因此刷新后的令牌无需重新创建客户端即可生效。</p>
+<h2 id="1-choose-the-authorization-server">1. 选择授权服务器<a class="heading-anchor" href="#1-choose-the-authorization-server" aria-label="链接到 1. 选择授权服务器"><span aria-hidden="true">#</span></a></h2>
+<p>部署方需要一个支持公共客户端<strong>带 PKCE 的授权码流程</strong>，并签发 <strong>JWT 访问令牌</strong>的 OAuth 2.0 授权服务器。有两种方式：</p>
+<ul>
+<li><strong>直接使用身份提供商。</strong>Okta、Entra ID、Auth0、Keycloak、Ping 及大多数现代身份提供商都开箱即用地支持此功能。注册一个原生或公共应用，允许 Happy 应用的重定向 URI，为这次部署定义 API 或资源，使访问令牌包含其受众；如有需要，启用刷新令牌。无需编写自定义代码。</li>
+<li><strong>编写一个小型授权服务器</strong>，放在无法签发合适访问令牌的身份提供商之前，例如仅支持 SAML 的提供商。参见第 3 步。</li>
+</ul>
+<h2 id="2-agree-the-token-contract">2. 明确令牌契约<a class="heading-anchor" href="#2-agree-the-token-contract" aria-label="链接到 2. 明确令牌契约"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>签发者</strong>（<code>iss</code>）：授权服务器的签发者，例如 <code>https://sso.acme.example</code>。</li>
+<li><strong>受众</strong>（<code>aud</code>）：<strong>本次</strong>部署独有的值，例如 <code>https://happy.acme.example</code>。守护进程能看到发送给它的每个令牌；使用唯一受众可以阻止它将成员令牌重放给其他服务或另一套 Happy 部署。</li>
+<li><strong>用户 ID 声明</strong>：稳定且永不重复使用的用户 ID。默认为 <code>sub</code>。优先使用不可变的对象 ID，而非邮箱地址。值应为 1–256 个可打印字符。</li>
+<li><strong>所有者</strong>：应成为此部署所有者的用户 ID。</li>
+<li><strong>客户端 ID</strong> 及可选<strong>权限范围</strong>：使用授权服务器为 Happy 应用注册的值。如果刷新令牌需要，请请求 <code>offline_access</code> 或提供商对应的权限范围。</li>
+<li><strong>有效期</strong>：访问令牌应短时有效，通常为 5–60 分钟；如果组织希望保持较长会话，则配合刷新令牌使用。服务器支持时，应在每次使用后轮换刷新令牌。</li>
+<li><strong>签名密钥</strong>：优先选择通过 JWKS URL 发布的非对称密钥，所有身份提供商都支持这种方式。支持的算法：<code>RS256</code>、<code>RS384</code>、<code>RS512</code>、<code>PS256</code>、<code>PS384</code>、<code>PS512</code>、<code>ES256</code>、<code>ES384</code>、<code>ES512</code>、<code>EdDSA</code>。也支持共享秘密（<code>HS256</code>、<code>HS384</code>、<code>HS512</code>，至少 32 字节），但任何持有它的人都能签发令牌，包括守护进程自身。当守护进程并非完全可信时，绝不要使用共享秘密，也绝不要在不同部署间共用一个秘密。</li>
+</ul>
+<p>每个访问令牌都必须携带 <code>iss</code>、<code>aud</code>、<code>exp</code> 和用户 ID 声明。若有 <code>nbf</code> 和 <code>iat</code>，也会检查。时钟最多允许相差 30 秒。</p>
+<h2 id="3-if-you-write-the-authorization-server-yourself">3. 如果自行编写授权服务器<a class="heading-anchor" href="#3-if-you-write-the-authorization-server-yourself" aria-label="链接到 3. 如果自行编写授权服务器"><span aria-hidden="true">#</span></a></h2>
+<p>按照 RFC 6749、RFC 7636 和 RFC 8252 实现三个端点。任何 OAuth 服务器库都可以做到；关键要求如下：</p>
+<p><strong><code>GET /oauth/authorize</code></strong> 接收 <code>response_type=code</code>、<code>client_id</code>、<code>redirect_uri</code>、<code>state</code>、<code>code_challenge</code>、<code>code_challenge_method=S256</code>，以及可选的 <code>scope</code>。</p>
+<ol>
+<li>检查 <code>client_id</code>，并<strong>将 <code>redirect_uri</code> 与 Happy 应用回调的允许列表精确比对</strong>，例如 <code>happy://auth/callback</code> 和 <code>http://127.0.0.1:&lt;any port&gt;/callback</code>。绝不重定向到其他位置，即使是为了报告错误也不行。</li>
+<li>通过身份提供商完成用户登录，并检查该用户是否被允许使用 Happy。</li>
+<li>创建一个随机、一次性、约一分钟内过期的授权码，并将它与用户、<code>client_id</code>、<code>redirect_uri</code> 和 <code>code_challenge</code> 一起存储。</li>
+<li>重定向到 <code>redirect_uri?code=&lt;code&gt;&amp;state=&lt;state&gt;</code>，原样复制 <code>state</code>。</li>
+</ol>
+<p><strong><code>POST /oauth/token</code></strong> 接收表单，包含 <code>grant_type=authorization_code</code>、<code>code</code>、<code>redirect_uri</code>、<code>client_id</code> 和 <code>code_verifier</code>。消费该授权码，检查 <code>client_id</code> 与 <code>redirect_uri</code> 是否匹配，并检查 <code>code_verifier</code> 的 SHA-256 值经过 base64url 编码后是否等于已存储的挑战值。返回 JSON：</p>
+<pre><code class="language-json">{
+    &quot;access_token&quot;: &quot;&lt;JWT&gt;&quot;,
+    &quot;token_type&quot;: &quot;Bearer&quot;,
+    &quot;expires_in&quot;: 900,
+    &quot;refresh_token&quot;: &quot;&lt;opaque random string&gt;&quot;
+}
+</code></pre>
+<p>错误使用 <code>400</code>，并返回 <code>{ &quot;error&quot;: &quot;invalid_grant&quot; }</code> 或其他 OAuth 错误码。</p>
+<p><strong><code>POST /oauth/refresh</code></strong>（可选；也可以使用令牌端点）接收 <code>grant_type=refresh_token</code>、<code>refresh_token</code> 和 <code>client_id</code>，响应方式相同。刷新令牌应哈希后存储，每次使用时轮换，人员离开时撤销；若已轮换的令牌被重复使用，应视为被盗，并撤销整个会话。刷新端点可以与另两个端点位于不同源。</p>
+<p>使用 <code>jose</code> 签发访问令牌：</p>
+<pre><code class="language-ts">import { importPKCS8, SignJWT } from &quot;jose&quot;;
+
+const privateKey = await importPKCS8(process.env.HAPPY_SIGNING_KEY!, &quot;ES256&quot;);
+
+export async function accessToken(userId: string): Promise&lt;string&gt; {
+    return await new SignJWT({})
+        .setProtectedHeader({ alg: &quot;ES256&quot;, kid: &quot;happy-2026-09&quot; })
+        .setIssuer(&quot;https://sso.acme.example&quot;)
+        .setAudience(&quot;https://happy.acme.example&quot;)
+        .setSubject(userId)
+        .setIssuedAt()
+        .setExpirationTime(&quot;15m&quot;)
+        .sign(privateKey);
+}
+</code></pre>
+<p>在稳定的 <code>https</code> URL 上以 JWKS 形式发布公钥，在密钥和令牌头中都包含 <code>kid</code>，轮换时先发布新密钥，再用它签名。在旧密钥签发的所有令牌都过期前，将它保留在 JWKS 中，之后再移除；守护进程会在下次下载时停止接受该密钥。所有端点都必须通过 <code>https</code> 提供服务；明文 <code>http</code> 仅在用于本地测试的回环主机上被允许。</p>
+<h2 id="4-configure-the-daemon">4. 配置守护进程<a class="heading-anchor" href="#4-configure-the-daemon" aria-label="链接到 4. 配置守护进程"><span aria-hidden="true">#</span></a></h2>
+<p>按照<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">团队部署模式</a>安装二进制文件并初始化 Tailcat，但不要使用 WorkOS 设置，而是按以下方式编写机器级 <code>happy.toml</code>：</p>
+<pre><code class="language-toml">[feature.team]
+enabled = true
+host = &quot;0.0.0.0&quot;
+port = 3000
+authentication = &quot;jwt&quot;
+owner_user_id = &quot;REPLACE_WITH_OWNER_USER_ID&quot;
+
+[feature.team.jwt]
+name = &quot;Acme SSO&quot;
+authorization_url = &quot;https://sso.acme.example/oauth/authorize&quot;
+token_url = &quot;https://sso.acme.example/oauth/token&quot;
+refresh_url = &quot;https://sso.acme.example/oauth/refresh&quot;
+client_id = &quot;happy&quot;
+scope = &quot;happy offline_access&quot;
+issuer = &quot;https://sso.acme.example&quot;
+audience = &quot;https://happy.acme.example&quot;
+user_id_claim = &quot;sub&quot;
+algorithms = [&quot;ES256&quot;]
+jwks_url = &quot;https://sso.acme.example/.well-known/jwks.json&quot;
+jwks_refresh_interval_sec = 3600
+</code></pre>
+<p><code>name</code> 是 Happy 应用在登录按钮上显示的名称。省略 <code>refresh_url</code> 可关闭刷新；如果服务器不需要权限范围，则省略 <code>scope</code>。必须且只能配置一种密钥来源：</p>
+<ul>
+<li><code>jwks_url = &quot;https://...&quot;</code>：使用已发布的密钥集（推荐）。守护进程在启动时自行下载密钥，随后每隔 <code>jwks_refresh_interval_sec</code> 秒再次下载（范围 60–86,400，默认 3,600），因此无需将密钥写入配置。如果令牌使用守护进程尚未见过的密钥签名，会立即触发下载，最多每 30 秒一次，因此轮换可立即生效。下载失败时，守护进程保留最近一次有效的密钥，并在一分钟后重试；从 JWKS 移除的密钥会在下次成功下载后失效；</li>
+<li><code>public_key = &quot;&quot;&quot;-----BEGIN PUBLIC KEY-----...&quot;&quot;&quot;</code>：使用单个 PEM 公钥；</li>
+<li><code>secret_env = &quot;HAPPY_TEAM_JWT_SECRET&quot;</code>：使用共享秘密，将其保存在守护进程服务的该环境变量中，绝不写入 <code>happy.toml</code>。</li>
+</ul>
+<p>使用 JWT 认证时，不要设置 <code>workos_organization_id</code>、<code>owner_workos_user_id</code> 或 <code>workos_client_id</code>；守护进程会拒绝这种组合。配置错误会使启动停止，并给出可读的提示，因此守护进程未能启动时应查看服务日志。</p>
+<p>用户通过认证方式与用户 ID 的组合来标识。从 WorkOS 切换到 JWT 的部署会以全新的成员账号开始；原有 WorkOS 用户仍保存在系统中，但无法通过 JWT 登录。</p>
+<h2 id="5-verify">5. 验证<a class="heading-anchor" href="#5-verify" aria-label="链接到 5. 验证"><span aria-hidden="true">#</span></a></h2>
+<p>在能够访问守护进程的机器上运行以下检查，将 <code>DAEMON</code> 替换为其地址。</p>
+<ol>
+<li>
+<p>不携带令牌时，发现接口也应响应：</p>
+<pre><code class="language-sh">curl -s &quot;DAEMON/v0/authentication&quot;
+</code></pre>
+<p>预期返回 <code>&quot;authenticated&quot;: false</code> 和一个包含已配置端点及客户端 ID 的 <code>oauth</code> 方法，不包含任何秘密、密钥或 JWKS 内容。</p>
+</li>
+<li>
+<p>通过 Happy 应用登录，或手动测试流程：使用回环 <code>redirect_uri</code>、<code>state</code> 和 PKCE 挑战值打开授权 URL，确认浏览器跳转到 <code>redirect_uri?code=...&amp;state=...</code>，然后在令牌端点兑换授权码。</p>
+</li>
+<li>
+<p>携带访问令牌调用发现接口，预期返回 <code>&quot;authenticated&quot;: true</code>。用户保存个人资料前，<code>userId</code> 始终为 <code>null</code>。</p>
+</li>
+<li>
+<p>确认遭篡改、已过期或受众错误的令牌会得到 <code>401</code>，且响应中的 <code>authentication</code> 字段列出相同方法，并确认面向其他受众的令牌会被拒绝。</p>
+</li>
+<li>
+<p>如果配置了刷新，执行一次刷新，确认新的访问令牌有效，并在启用轮换时确认旧刷新令牌已被拒绝。</p>
+</li>
+<li>
+<p>在 Happy 应用中以所有者身份登录，完成首次设置，并运行<a href="../index.html#testing-a-deployed-node">已部署节点测试</a>。然后以第二位成员身份登录，确认该成员不是所有者。</p>
+</li>
+</ol>
+<h2 id="troubleshooting">故障排查<a class="heading-anchor" href="#troubleshooting" aria-label="链接到 故障排查"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>浏览器显示错误而没有重定向。</strong>重定向 URI 未在授权服务器中注册，或客户端 ID 错误。</li>
+<li><strong>兑换授权码失败，返回 <code>invalid_grant</code>。</strong>授权码已过期或已被使用，重定向 URI 与授权时使用的不一致，或服务器没有使用 S256 验证 PKCE。</li>
+<li><strong>启动后所有访问令牌立即被拒绝。</strong>守护进程无法下载 JWKS：检查它能否通过 <code>https</code> 直接访问 <code>jwks_url</code> 而不经过重定向，并查看服务日志中的密钥集警告。</li>
+<li><strong>所有访问令牌都被拒绝。</strong>将 <code>iss</code>、<code>aud</code>、<code>alg</code> 和 <code>kid</code> 与配置精确比对，并检查服务器时钟。有些身份提供商只有在请求 API 或资源受众时才签发 JWT，否则会签发不透明访问令牌；守护进程需要 JWT。</li>
+<li><strong>始终没有发生刷新。</strong>未配置 <code>refresh_url</code>，令牌响应中没有 <code>refresh_token</code>，或者权限范围缺少 <code>offline_access</code> 或对应项。</li>
+<li><strong>有人意外成为所有者。</strong>只有 <code>owner_user_id</code> 与令牌中的用户 ID 声明匹配时，才会赋予所有者身份。</li>
+</ul>
+<p>绝不要将真实令牌、授权码、私钥或共享秘密粘贴到对话、问题单或日志中。</p></div>
+</div>
+<nav class="document-pagination" aria-label="文档上一页与下一页"><a class="document-pagination-prev" href="../hardening/index.html"><span>上一页</span>使用独立 Linux 用户加固节点</a><a class="document-pagination-next" href="../upgrade/index.html"><span>下一页</span>升级 Happy 智能体</a></nav>
+<footer class="site-footer"><div class="page-width footer-inner"><p class="footer-statement">我们围绕智能体构建交互界面：让你掌控它们的方式、它们运行的方式，以及团队与它们共享上下文的方式。<span class="footer-people"><a href="https://x.com/Ex3NDR" target="_blank" rel="noopener noreferrer">@Ex3NDR</a> 与 <a href="https://x.com/bra1n_dump" target="_blank" rel="noopener noreferrer">@bra1n_dump</a></span></p><div class="footer-meta"><div class="footer-links" aria-label="页脚导航"><a href="../../index.html">文档</a><a href="../../desktop-app/index.html">桌面应用</a><a href="../../mobile-app/index.html">手机应用</a><a href="../../privacy/index.html">隐私政策</a><a href="../../terms/index.html">服务条款</a><a class="footer-link-quiet" href="https://happy.engineering/docs/">原版 Happy CLI</a></div><a class="wordmark" href="https://happy.engineering/" aria-label="Happy Engineering 官方首页">Happy<span>Engineering</span></a><p class="footer-descriptor">在同一款应用中编排 Claude、Codex、Grok、Gemini 等智能体</p><p>© 2026 Happy Engineering</p><p>非官方中文翻译 · <a href="https://happy.engineering/recepies/enterprise-sign-in/" data-original="true">查看本页原文</a></p></div></div></footer>
+</article></main></div></div>
+<script>
+/* 仅复现原站移动端导航，点击站内链接后收起。 */
+const trail=document.querySelector('.docs-mobile-trail');
+const menu=document.getElementById('docs-mobile-menu');
+trail.addEventListener('click',()=>{const expanded=trail.getAttribute('aria-expanded')==='true';trail.setAttribute('aria-expanded',String(!expanded));menu.hidden=expanded;});
+menu.addEventListener('click',event=>{if(event.target.closest('a')){menu.hidden=true;trail.setAttribute('aria-expanded','false');}});
+</script>
+</body></html>

@@ -1,0 +1,103 @@
+<div class="document-content"><h1 id="create-and-deploy-a-happy-team">创建并部署 Happy 团队<a class="heading-anchor" href="#create-and-deploy-a-happy-team" aria-label="链接到 创建并部署 Happy 团队"><span aria-hidden="true">#</span></a></h1>
+<p>当用户希望为一个具名团队建立共享的 Happy Agent 服务器时，使用本操作指南。最终成果是一个基于 WorkOS 的 Happy 团队、一套可用的团队模式部署，以及一个经过验证的本地连接。只有部署和连接正常工作后，才询问邀请对象。</p>
+<p>请先阅读 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/happy-teams.md" target="_blank" rel="noreferrer">Happy 团队</a>和<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">团队部署模式</a>。在用户授权的任务内执行常规工作；只询问尚未明确的重要选择、访问权限或交互式登录。本指南不授权购买基础设施、暴露无关机器、转移提供商凭据或发送未经请求的邀请。</p>
+<p>为已部署团队添加连接时，复用经过验证的团队 ID 和端点。按照第 4 步验证运行中的服务，然后执行第 5 步，包括当前成员个人资料及 Desktop 就绪检查。仅添加连接不需要创建团队或重新部署服务器。</p>
+<h2 id="1-confirm-the-user-s-account">1. 确认用户账号<a class="heading-anchor" href="#1-confirm-the-user-s-account" aria-label="链接到 1. 确认用户账号"><span aria-hidden="true">#</span></a></h2>
+<p>在用户本地的独立安装实例上，使用一个处于活动状态的管理员机器人来执行此流程。先以 <code>{}</code> 调用 <code>get_happy_workos_state</code>。根据工具结果确定登录状态，而不是询问用户是否已登录：</p>
+<ul>
+<li>成功结果中包含 <code>workos_user_id</code> 和 <code>workos_client_id</code> 即表示已通过认证。保存这两个精确值供部署使用，并直接继续，不再要求用户确认登录或再次登录。不要猜测 ID，也不要用用户邮箱代替 WorkOS 用户 ID。</li>
+<li>如果结果报告认证缺失或无效，请用户打开 <strong>Settings → Account → Join Happy Social</strong> 并完成交互式登录。之后再次调用 <code>get_happy_workos_state</code> 验证成功，再进行团队变更。</li>
+<li>权限或连接错误并不意味着用户已退出登录。应解决或报告这个具体阻塞，而不是要求重新登录。</li>
+</ul>
+<p>账号还必须绑定邮箱地址。任何用户能够访问的邮箱都可以，包括个人邮箱；不要求公司域名。在账号流程中完成要求的邮箱验证。状态查询只能验证认证情况，不会返回邮箱绑定状态。绝不要让用户将密码、访问令牌或刷新令牌粘贴到对话中。</p>
+<h2 id="2-choose-the-name-and-prepare-the-endpoint">2. 确定名称并准备端点<a class="heading-anchor" href="#2-choose-the-name-and-prepare-the-endpoint" aria-label="链接到 2. 确定名称并准备端点"><span aria-hidden="true">#</span></a></h2>
+<p>原样使用用户提供的团队名称和部署目标。若其中任何一项缺失，再询问用户。同时选择一个本地连接名称和未使用的连接 ID。不要将本指南中的示例名称、ID 或地址当作真实值使用。</p>
+<p>以 <code>{}</code> 调用 <code>list_happy_teams</code>，然后使用 <code>{ &quot;offset&quot;: NEXT_OFFSET }</code> 逐次跟随 <code>next_offset</code>，直到它为 null。如果所需团队已经存在，先明确用户是要配置现有团队，还是另建团队；不要悄悄创建重复项。</p>
+<p>本指南使用 Tailcat：本地连接工具需要其区分大小写的地址和 API 端口。在已授权的主机上，按照<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">团队部署模式</a>的第 1、2 节安装发布版二进制文件，准备服务账号和提供商访问，并初始化 Tailcat 身份。将服务的数据和身份保存在持久化存储上。</p>
+<p>从主机当前生效的 Tailcat 地址文件和端口文件中，记录准确的 <code>tailcat://ADDRESS:PORT</code> 端点。将地址视为私密发现信息，绝不转移其私有身份密钥。如果主机已有稳定的 Tailcat 端点，应在验证归属和配置后复用。</p>
+<p>这个最小初始化步骤不可省略，因为 <code>create_happy_team</code> 必须提供端点，无法仅凭名称创建团队。下一步会创建组织，之后才配置其团队模式部署。不要为了绕过此前置条件而发布编造的端点。</p>
+<h2 id="3-create-the-named-team">3. 创建指定名称的团队<a class="heading-anchor" href="#3-create-the-named-team" aria-label="链接到 3. 创建指定名称的团队"><span aria-hidden="true">#</span></a></h2>
+<p>使用选定的名称和准确端点调用 <code>create_happy_team</code>：</p>
+<pre><code class="language-json">{
+    &quot;name&quot;: &quot;Acme Engineering&quot;,
+    &quot;endpoint&quot;: &quot;tailcat://REPLACE_WITH_EXACT_TAILCAT_ADDRESS:24779&quot;
+}
+</code></pre>
+<p>保存返回的团队 ID、名称和端点。当前连接的用户会成为该组织的管理员。这项操作只注册团队，并不会部署服务器。</p>
+<p>如果创建结果报告组织已创建，但端点注册失败，应保留错误中的团队 ID，并使用 <code>update_happy_team</code> 完成注册：</p>
+<pre><code class="language-json">{
+    &quot;team_id&quot;: &quot;org_REPLACE_WITH_CREATED_TEAM_ID&quot;,
+    &quot;endpoint&quot;: &quot;tailcat://REPLACE_WITH_EXACT_TAILCAT_ADDRESS:24779&quot;
+}
+</code></pre>
+<p>出现部分成功或结果不明确时，不要重复创建。先检查用户的团队列表。</p>
+<h2 id="4-deploy-in-team-mode-and-check-the-service">4. 以团队模式部署并检查服务<a class="heading-anchor" href="#4-deploy-in-team-mode-and-check-the-service" aria-label="链接到 4. 以团队模式部署并检查服务"><span aria-hidden="true">#</span></a></h2>
+<p>在选定主机上，按照<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md" target="_blank" rel="noreferrer">团队部署模式</a>第 4 节执行。将最终设置合并到服务账号的机器级 <code>happy.toml</code> 中，保留无关的提供商设置：</p>
+<pre><code class="language-toml">[feature.team]
+enabled = true
+host = &quot;127.0.0.1&quot;
+port = 3000
+workos_organization_id = &quot;org_REPLACE_WITH_CREATED_TEAM_ID&quot;
+owner_workos_user_id = &quot;user_REPLACE_WITH_VERIFIED_OWNER_ID&quot;
+workos_client_id = &quot;client_REPLACE_WITH_VERIFIED_CLIENT_ID&quot;
+
+[feature.tailcat]
+enabled = true
+port = 24779
+</code></pre>
+<p>使用第 3 步得到的组织 ID、第 1 步验证过的两个 WorkOS ID，以及第 2 步得到的 Tailcat 端口。Happy Cloud 与部署实例必须使用同一个 WorkOS 环境。服务器验证成员令牌时，不需要 WorkOS API 密钥，也不需要复制本地 Happy Cloud 刷新令牌。</p>
+<p>在主机的服务管理器下运行 <code>happy-agent run</code>。团队模式没有独立模式 API 套接字，因此不要用 <code>happy-agent start</code>、<code>stop</code>、<code>status</code> 或 <code>reload</code> 管理它。对于 Linux systemd 部署，使用以下命令重启和检查：</p>
+<pre><code class="language-sh">sudo systemctl restart happy-agent
+sudo systemctl is-active happy-agent
+sudo journalctl -u happy-agent -n 100 --no-pager
+</code></pre>
+<p>在有限超时时间内等待可观察到的启动完成，确认服务持续运行，没有配置错误或提供商启动错误，并确认当前生效的 Tailcat 端点仍与团队注册的端点一致。保持监听器仅通过 Tailcat 私密访问，并保持 WorkOS 认证开启。未认证的健康请求应被拒绝；仅凭该拒绝结果，不能证明经过认证的访问已经就绪。</p>
+<p>管理员机器人可以直接验证运行中的节点，而不只是检查源码或配置。要在用户任务内执行经过认证的诊断，可在本地独立安装实例上调用 <code>mint_happy_workos_token</code>：</p>
+<pre><code class="language-json">{ &quot;team_id&quot;: &quot;org_REPLACE_WITH_CREATED_TEAM_ID&quot; }
+</code></pre>
+<p>将返回的 <code>access_token</code> 作为 <code>Authorization: Bearer &lt;access_token&gt;</code>，通过 Tailcat 或经过验证的 HTTPS，向目标可信团队节点发送有超时限制的请求。传输方式请遵循 <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/team-mode.md#5-verify-a-team-connection" target="_blank" rel="noreferrer">Tailcat 请求示例</a>；<code>tailcat://</code> 端点不是普通 HTTP URL。先请求 <code>GET /v0/health</code>，再检查 <code>GET /v0/onboarding</code> 和 <code>GET /v0/profile</code>，以确认实际认证和就绪状态。完成个人资料首次设置后，使用与任务相关且有文档说明的其他读取端点检查实时状态。阅读发布包中的 <code>API.md</code>，了解请求与响应契约，实际执行检查，并报告节点真实返回的内容。仅检查代码不能证明部署可用。变更及智能体冒烟测试必须处于用户授权范围内；持有令牌并不意味着获得了无关操作的授权。</p>
+<p>令牌携带当前连接用户在该组织中的权限，有效期不超过五分钟；<code>expires_at</code> 是以 Unix 毫秒表示的实际过期时间。请在检查前刚好需要时签发。WorkOS 的 Access token duration 必须设为五分钟或更短；工具不会提供有效期更长的令牌。遇到这项配置阻塞时，应报告而不是绕过限制。不要让令牌出现在文件、保存的连接设置、日志或最终答复中；不要将其转发到无关端点，也不要通过重定向转发。绝不复制刷新令牌。若令牌过期阻碍了仍在授权范围内的读取操作，可签发新令牌；对于结果不确定的修改操作，不要自动重放。</p>
+<p>先解决部署失败，再添加本地连接。这些服务检查可以确认主机正在运行，并支持直接进行经过认证的诊断；下一步还会测试用户保存的本地连接和实际智能体使用情况。</p>
+<h3 id="strongly-recommended-a-dedicated-runner">强烈建议：使用专用运行器<a class="heading-anchor" href="#strongly-recommended-a-dedicated-runner" aria-label="链接到 强烈建议：使用专用运行器"><span aria-hidden="true">#</span></a></h3>
+<p>共享节点会运行所有成员的智能体，因此应建议在成员开始工作前<a href="https://happy.engineering/recepies/runner/">添加专用运行器</a>，并在用户同意后执行。运行器在独立机器上保存团队项目文件夹，运行智能体命令、Git 和终端；节点则保存数据库、提供商凭据和 WorkOS 设置。运行器使用自己的令牌连接节点的 Tailcat 暴露端点，因此无需改变监听器或 WorkOS 认证。</p>
+<p>如果团队不采用运行器，可提议在服务首次启动之前<a href="https://happy.engineering/recepies/hardening/">通过独立 Linux 用户加固节点</a>：此后，成员的智能体命令以工作负载用户运行，无法读取服务账号的配置、数据库、WorkOS 设置或提供商凭据。这两种方式不能在同一节点上组合使用。</p>
+<h2 id="5-add-the-local-connection-and-verify-it">5. 添加本地连接并验证<a class="heading-anchor" href="#5-add-the-local-connection-and-verify-it" aria-label="链接到 5. 添加本地连接并验证"><span aria-hidden="true">#</span></a></h2>
+<p>在最初的独立安装实例上，以 <code>{}</code> 调用 <code>list_remote_connections</code>，检查是否已有对应条目。复用匹配条目，或选择未使用的 ID；<code>set_remote_connection</code> 会替换同 ID 条目，因此不要覆盖无关连接。</p>
+<p>部署服务的检查通过后，调用 <code>set_remote_connection</code>：</p>
+<pre><code class="language-json">{
+    &quot;id&quot;: &quot;acme-team&quot;,
+    &quot;connection&quot;: {
+        &quot;name&quot;: &quot;Acme Engineering&quot;,
+        &quot;address&quot;: &quot;REPLACE_WITH_EXACT_TAILCAT_ADDRESS&quot;,
+        &quot;port&quot;: 24779,
+        &quot;workos_organization_id&quot;: &quot;org_REPLACE_WITH_CREATED_TEAM_ID&quot;
+    }
+}
+</code></pre>
+<p><code>address</code> 是区分大小写的准确 Tailcat 地址，而不是完整的 <code>tailcat://</code> URL。填写实际 Tailcat 端口和所创建团队的组织 ID。团队连接不要提供独立模式的持有者 <code>token</code>。连接层会自动从已连接的 Happy Cloud 账号获取组织范围的 WorkOS 令牌。第 4 步中的短期诊断令牌仅供直接检查使用；不要提取连接凭据，也不要用该令牌替代连接自身托管的认证。</p>
+<p>此工具保存本地机器运行时配置，并无需重启本地守护进程即可应用。它允许此安装实例中已认证的客户端访问远程 API，但并不会部署远程服务。</p>
+<p>使用选定的连接 ID 调用 <code>check_remote_connection_health</code>：</p>
+<pre><code class="language-json">{ &quot;id&quot;: &quot;acme-team&quot; }
+</code></pre>
+<p>必须要求 <code>reachable</code>、<code>authenticated</code> 和 <code>ready</code> 全部为 <code>true</code>。若不可达，检查服务、Tailcat 地址、端口和出站连接。若认证失败，检查 Happy Social 登录、组织成员关系及准确的 WorkOS 配置。若未就绪，检查启动和首次设置状态。绝不要关闭认证或改用独立模式令牌来让失败的检查通过。</p>
+<p>将完成当前已认证成员的个人资料首次设置作为配置流程的一部分。使用运行版本 <code>API.md</code> 中的个人资料、首次设置和启动初始化契约：</p>
+<ol>
+<li>以当前连接用户的身份读取远程 <code>GET /v0/profile</code> 和 <code>GET /v0/onboarding</code>。保留远程个人资料中所有已填写的字段和现有照片；不要用本地值替换，也不要修改其他成员的个人资料。只补充授权配置所需的缺失字段。</li>
+<li>对于新个人资料或配置所需的缺失字段，自动复用用户现有的本地个人资料。在本地独立安装实例上调用 <code>get_local_profile</code> 获取姓名和邮箱；此工具不返回照片数据。读取本地 <code>GET /v0/profile</code>，如果有照片，再通过 <code>GET /v0/profile/photo</code> 获取图像字节。除非用户要求不同值，否则使用已知值补充远程缺失字段。只询问真正缺失的必需身份信息，或需要交互的事项；不要将常规个人资料配置工作交还给用户。</li>
+<li>向远程发送 <code>PATCH /v0/profile</code>，只包含缺失的姓名和／或已知邮箱，并在 <code>If-Match</code> 中使用远程个人资料最新的 <code>version</code>。新个人资料必须具有非 null 的姓名。省略未知的可选值；没有字段需要补充时，跳过更新。如果远程照片缺失，且复制本地照片属于配置范围，则按实际格式使用 <code>Content-Type: image/png</code>、<code>image/jpeg</code> 或 <code>image/webp</code>，将图像字节发送到远程 <code>PUT /v0/profile/photo</code>，并在 <code>If-Match</code> 中使用任何补丁操作之后的最新个人资料版本。照片是可选的。绝不复制本地个人资料 ID、版本、私有身份或数据库文件。若发生版本冲突，检查返回的当前个人资料并保留并发编辑，而不是重放旧更新。</li>
+<li>保存后重新读取远程 <code>GET /v0/onboarding</code>。如果安装实例已完成首次设置，保存成员个人资料会自动完成该成员的首次设置。只有当 <code>completed</code> 仍为 <code>false</code>，原因是安装实例设置尚未完成，并且完成该实例设置属于用户授权任务时，才在保存个人资料后调用 <code>POST /v0/onboarding/complete</code>，随后重新读取首次设置状态。仅添加连接不代表获准修改安装实例的首次设置状态。应解决或报告所有剩余配置要求。</li>
+<li>通过已保存的本地连接，确认 <code>GET /v0/bootstrap/desktop</code> 成功返回，且包含 <code>onboarding.completed: true</code>，以及文档规定的 <code>config</code> 和当前成员 <code>profile</code> 对象。仅健康检查通过不能证明 Desktop 可以打开该团队。<code>steps.project.done: false</code> 只是表示没有项目，不是完成标记；它可以与 <code>completed: true</code> 同时存在。不要创建虚假的永久项目，也不要修改管理员权限或凭据来绕过首次设置。</li>
+</ol>
+<p>然后在 Happy 中通过该本地连接验证实际体验。对于新部署，按照<a href="https://happy.engineering/recepies/#testing-a-deployed-node">测试已部署节点</a>执行：新建临时项目、工作区和智能体，绝不复用已有项目，并使用已配置的提供商运行一个小型推理任务，其中包含无害的 Shell／文件检查。确认收到响应且工具可用；仅健康检查无法验证模型推理或 Shell 沙箱启动。在没有活动工作时协调一次服务重启，并重新检查连接健康状态，确认持久性与恢复能力。每次测试操作前和重启后都检查用户是否已经归档临时项目；若已归档，立即停止，不要恢复或替换该项目。验证后（包括检查失败的情况）归档该项目，并确认归档状态。如果交互步骤需要用户参与，应提出请求，并在完成后恢复验证；不要将未测试步骤标记为通过。</p>
+<h2 id="6-ask-whom-to-invite">6. 询问邀请对象<a class="heading-anchor" href="#6-ask-whom-to-invite" aria-label="链接到 6. 询问邀请对象"><span aria-hidden="true">#</span></a></h2>
+<p>只有部署、连接和冒烟测试都通过之后，才告诉用户团队已正常工作，并询问：“你想邀请谁？请把他们的邮箱地址发给我。”如果用户已明确为本次配置提供了收件人，则直接使用，无需重复索要名单。否则等待用户回答。不要从 Git 历史、联系人或团队名称推断邀请对象。</p>
+<p>对于用户要求的每个邮箱，从当前活动的本地管理员机器人调用 <code>invite_happy_team_member</code>：</p>
+<pre><code class="language-json">{
+    &quot;team_id&quot;: &quot;org_REPLACE_WITH_CREATED_TEAM_ID&quot;,
+    &quot;email&quot;: &quot;teammate@example.com&quot;
+}
+</code></pre>
+<p>邀请授予的是普通成员身份，而不是管理员访问权限。但在团队节点内部，每位成员自己发送的消息都具有与所有者消息相同的授权效力，包括在 Auto 权限审查中，因此只应邀请用户信任其操作该节点的人。通过<a href="https://happy.engineering/recepies/telegram/">导出机器人</a>进入的人则不同：他们是永远无法登录的访客，其消息不构成任何授权。Happy Cloud 还要求当前连接用户必须是这个特定团队的活动管理员。WorkOS 控制邮件投递；邀请创建成功不能证明邮件已经送达。应报告实际结果，并且仅向预期收件人分享接受邀请的链接。接受与投递的注意事项参见<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/happy-teams.md#email-invitations" target="_blank" rel="noreferrer">邮件邀请</a>。</p>
+<p>不要自动重发已有或待处理的邀请，也不要重试可能已经发送邮件但结果不明确的失败操作。先确认其状态。收件人应接受邀请、加入 Happy Social，并在连接团队前为账号绑定邮箱。</p>
+<h2 id="completion">完成<a class="heading-anchor" href="#completion" aria-label="链接到 完成"><span aria-hidden="true">#</span></a></h2>
+<p>给出简洁的交接信息：团队名称和 ID、部署位置与版本、本地连接名称、当前成员个人资料及 Desktop 启动初始化的首次设置结果、已执行的推理验证，以及邀请结果或尚待提供收件人的请求。只有 <code>GET /v0/bootstrap/desktop</code> 返回 <code>onboarding.completed: true</code> 后，才能报告配置完成；当 Desktop 仍受首次设置门槛限制时，不要宣称完成，也不要将常规个人资料配置留给用户。一般性交接中不要包含凭据、私有身份密钥或邀请链接。分别说明基础设施、连接、首次设置、推理和邀请的结果，避免将部分完成的配置报告为完全可用。</p></div>

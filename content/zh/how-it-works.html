@@ -1,0 +1,28 @@
+<div class="document-content"><h1 id="how-it-works">工作原理<a class="heading-anchor" href="#how-it-works" aria-label="链接到工作原理"><span aria-hidden="true">#</span></a></h1>
+<p>Happy 是一个代理运行框架。统一的运行时 Happy Agent 为 Claude、Codex 和 Grok 运行代理循环、工具和沙箱，并让代理之间能够交接工作。它也可以运行厂商自己的代理（测试版）：适用于 Gemini 的 Antigravity、OpenCode，或任何支持 Agent Client Protocol（ACP）的代理。Happy Desktop 和手机应用都是访问它的窗口。</p>
+<h2 id="the-runtime">运行时<a class="heading-anchor" href="#the-runtime" aria-label="链接到运行时"><span aria-hidden="true">#</span></a></h2>
+<p><strong>Happy Agent</strong> 是运行在你电脑上的无界面守护进程。Desktop 会启动它，并通过私有本地套接字与其通信。守护进程包含代理循环、工具、沙箱，以及保存全部会话的 SQLite 数据库。退出 Desktop 后，会话仍会继续运行；重启守护进程后，会从磁盘恢复会话。</p>
+<p>守护进程采用与 Claude Code、Codex 和 Grok CLI 相同的方式向提供商认证：读取这些工具保存在电脑上的凭据。模型目录内置于运行时中。没有凭据的提供商会显示为不可用，并注明原因。</p>
+<h2 id="native-per-model-shared-around-it">模型保持原生，外围能力共享<a class="heading-anchor" href="#native-per-model-shared-around-it" aria-label="链接到模型保持原生，外围能力共享"><span aria-hidden="true">#</span></a></h2>
+<p>每个提供商都原样使用其厂商的提示词和工具，请求与原生形式足够接近，因此提示缓存和原生上下文压缩仍然有效。推理之外的所有能力则统一共享：</p>
+<ul>
+<li>统一的权限模型。Claude 的 <code>Bash</code>、Codex 的 <code>exec_command</code> 和 Grok 的 <code>run_terminal_command</code> 都运行同一个沙箱 shell。</li>
+<li>统一的对话记录。切换模型后，对话历史仍然保留。</li>
+<li>统一的 Happy 工具集：子代理、等待、调度、向其他代理发消息，以及 MCP。</li>
+</ul>
+<h2 id="durable">持久可靠<a class="heading-anchor" href="#durable" aria-label="链接到持久可靠"><span aria-hidden="true">#</span></a></h2>
+<p>每项变更都会先写入数据库，再应用到内存。子代理本身也是会话。等待状态和定时消息在重启后仍会保留。</p>
+<h2 id="clients">客户端<a class="heading-anchor" href="#clients" aria-label="链接到客户端"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>客户端</th><th>内容</th></tr></thead><tbody><tr><td><strong>Happy Desktop</strong></td><td>项目、工作区、会话、变更文件、终端、收件箱（实验性）、设置</td></tr><tr><td><strong>Happy 移动端</strong></td><td>iOS 和 Android，通过加密中继连接同一批会话</td></tr></tbody></table></div>
+<p>来自任何客户端的消息都会进入同一个会话、队列和权限边界。不存在单独的远程模式。</p>
+<h2 id="what-leaves-the-machine">哪些内容会离开电脑<a class="heading-anchor" href="#what-leaves-the-machine" aria-label="链接到哪些内容会离开电脑"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>模型请求携带你的凭据，发往你选择的提供商。</li>
+<li>会话以密文形式通过 Happy 的中继同步到手机。密钥由你的设备持有。</li>
+<li>应用向 PostHog 发送产品分析数据，关联一个随机安装 ID：你使用了哪些功能、模型、操作系统和应用版本。PostHog 也会看到每个请求的 IP 地址。绝不会包含你的消息、代码或文件。可在“设置 → 通用 → 隐私”中关闭。</li>
+<li>应用无需托管账户，也不会上传项目副本。</li>
+</ul>
+<h2 id="is-happy-a-phone-remote-for-claude-code">Happy 是 Claude Code 的手机遥控器吗？<a class="heading-anchor" href="#is-happy-a-phone-remote-for-claude-code" aria-label="链接到 Happy 是 Claude Code 的手机遥控器吗？"><span aria-hidden="true">#</span></a></h2>
+<p>这描述的是<a href="https://happy.engineering/docs/">最初的 Happy CLI</a>：它在终端中包装 Claude Code，让你可以通过手机控制。如今的 Happy 是本页介绍的运行框架，在一个应用中运行 Claude、Codex、Grok、Gemini 等；手机应用只是其中一个客户端。</p>
+<h2 id="not-yet">尚未实现<a class="heading-anchor" href="#not-yet" aria-label="链接到尚未实现"><span aria-hidden="true">#</span></a></h2>
+<p>对正在运行的提供商会话创建分叉。通过名称添加远程机器的完整体验；Tailcat 传输已经存在，参见<a href="https://happy.engineering/guides/remote-server/">远程服务器指南</a>。</p></div>

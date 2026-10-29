@@ -1,0 +1,30 @@
+<div class="document-content"><h1 id="team-sign-in-with-workos">Team Sign-In with WorkOS<a class="heading-anchor" href="#team-sign-in-with-workos" aria-label="Link to Team Sign-In with WorkOS"><span aria-hidden="true">#</span></a></h1>
+<p>A Happy Agent <a href="https://happy.engineering/multiplayer/">team server</a> is powered by <a href="https://workos.com" target="_blank" rel="noreferrer">WorkOS</a>. WorkOS signs each member in and keeps the team&#x27;s membership; the server only checks a signed token on each request. It never sees a password. Prefer your own identity provider? <a href="#bring-your-own-identity-provider">Use it instead</a>.</p>
+<p><img src="https://happy.engineering/img/team-sign-in-workos.svg" alt="How a team member signs in. Happy Desktop signs in with WorkOS through AuthKit with PKCE, and gets back an access token for the team. Every request to the team server carries that token. The team server fetches WorkOS&#x27;s public signing keys once and caches them, then checks each token locally: the RS256 signature, the issuer, the client, and the org_id, and maps the user to a team member. Or, with authentication set to jwt, the server verifies tokens from your own OAuth server instead." loading="lazy"></p>
+<h2 id="what-workos-does">What WorkOS does<a class="heading-anchor" href="#what-workos-does" aria-label="Link to What WorkOS does"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><strong>Accounts and sign-in: AuthKit.</strong> Your Happy Social account is a WorkOS user. Desktop signs it in with <a href="https://workos.com/docs/authkit" target="_blank" rel="noreferrer">AuthKit</a> in your browser, using the public-client PKCE flow, so the app ships no client secret. The rotating refresh token stays on your machine.</li>
+<li><strong>Teams: Organizations.</strong> A Happy team is a WorkOS <a href="https://workos.com/docs/reference/organization" target="_blank" rel="noreferrer">organization</a> with the server&#x27;s address registered on it. Creating the team makes you its admin.</li>
+<li><strong>Invitations.</strong> Members join by email. WorkOS sends the <a href="https://workos.com/docs/authkit/invitations" target="_blank" rel="noreferrer">invitation</a> and handles accepting it; an invitation grants ordinary membership.</li>
+<li><strong>A token per team.</strong> For each team you connect to, the Happy Agent in your Desktop trades its refresh token for an access token scoped to that organization, WorkOS&#x27;s <a href="https://workos.com/docs/authkit/sessions#switching-organizations" target="_blank" rel="noreferrer">organization switching</a>, and sends it with every request.</li>
+</ul>
+<h2 id="what-the-server-checks">What the server checks<a class="heading-anchor" href="#what-the-server-checks" aria-label="Link to What the server checks"><span aria-hidden="true">#</span></a></h2>
+<p>A team server accepts nothing but a bearer token on every request, health included. Only <code>GET /v0/authentication</code>, which tells the app how to sign in, is public. For each token it checks, locally:</p>
+<ul>
+<li>the RS256 signature, against the <a href="https://workos.com/docs/reference/authkit/session-tokens/jwks" target="_blank" rel="noreferrer">signing keys</a> WorkOS publishes for Happy&#x27;s client, fetched once and cached;</li>
+<li>the issuer and <code>client_id</code>, and that <code>exp</code>, <code>iat</code>, <code>sub</code>, <code>sid</code>, and <code>org_id</code> are present;</li>
+<li>that <code>org_id</code> is this team&#x27;s organization.</li>
+</ul>
+<p>Anything else gets a <code>401</code>. The WorkOS user in <code>sub</code> becomes a team member when they first save their profile; the user named as the owner gets the owner&#x27;s privileges. Past fetching the public keys, the server makes no call to WorkOS to accept a request.</p>
+<pre><code class="language-toml">[feature.team]
+enabled = true
+workos_client_id = &quot;client_01KZD3XE9YAFAMT0P8TD4HP73E&quot;
+workos_organization_id = &quot;org_...&quot;
+owner_workos_user_id = &quot;user_...&quot;
+</code></pre>
+<h2 id="why-workos">Why WorkOS<a class="heading-anchor" href="#why-workos" aria-label="Link to Why WorkOS"><span aria-hidden="true">#</span></a></h2>
+<p>It is the part of a team product nobody wants to build twice: accounts, organizations, invitations, and sessions. With WorkOS handling them, we run no password database and no invitation mailer of our own, and a server you host yourself can trust a team sign-in by checking a signature. Thank you, WorkOS.</p>
+<h2 id="bring-your-own-identity-provider">Bring your own identity provider<a class="heading-anchor" href="#bring-your-own-identity-provider" aria-label="Link to Bring your own identity provider"><span aria-hidden="true">#</span></a></h2>
+<p>Set <code>authentication = &quot;jwt&quot;</code> and members sign in with your organization&#x27;s own OAuth 2.0 server instead, such as Okta, Entra ID, Google Workspace, or Keycloak. The app runs the authorization code flow with PKCE against that server directly. The team server only verifies the JWT access tokens it is sent; it never receives the sign-in code or a refresh token. Sign-in then involves no WorkOS account. <a href="https://github.com/slopus/happy-agent/blob/main/docs/recipe/enterprise-jwt-authentication.md" target="_blank" rel="noreferrer">Set up enterprise JWT sign-in</a> walks through it.</p>
+<h2 id="how-the-chief-of-staff-sets-up-a-team">How the Chief of Staff sets up a team<a class="heading-anchor" href="#how-the-chief-of-staff-sets-up-a-team" aria-label="Link to How the Chief of Staff sets up a team"><span aria-hidden="true">#</span></a></h2>
+<p>The <a href="https://happy.engineering/chief-of-staff/">Chief of Staff</a> follows the public recipe, <a href="https://github.com/slopus/happy-agent/blob/main/docs/recipe/deploy-happy-team.md" target="_blank" rel="noreferrer">Create and deploy a Happy team</a>: your account, the name and endpoint, the team, team mode, a verified connection, then invitations.</p></div>

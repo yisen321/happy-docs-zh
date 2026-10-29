@@ -1,0 +1,136 @@
+<div class="document-content"><h1 id="harnesses-claude-code-codex-cli-antigravity-opencode-and-acp-agents">Harnesses: Claude Code, Codex CLI, Antigravity, OpenCode, and ACP agents<a class="heading-anchor" href="#harnesses-claude-code-codex-cli-antigravity-opencode-and-acp-agents" aria-label="Link to Harnesses: Claude Code, Codex CLI, Antigravity, OpenCode, and ACP agents"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe when the user wants a Happy agent to run on another vendor&#x27;s whole agent rather
+than on Happy&#x27;s own loop: Claude Code itself, Codex CLI itself, Google Antigravity, OpenCode, or
+any agent with an <a href="https://agentclientprotocol.com" target="_blank" rel="noreferrer">Agent Client Protocol</a> server. Accounts and
+their credentials stay in <a href="https://happy.engineering/recepies/accounts-and-models/">Accounts and models</a>; a harness only says who
+runs the agent loop on them.</p>
+<h2 id="what-changes-for-the-user">What changes for the user<a class="heading-anchor" href="#what-changes-for-the-user" aria-label="Link to What changes for the user"><span aria-hidden="true">#</span></a></h2>
+<p>Happy&#x27;s own harness runs the loop with Happy&#x27;s prompt, tools, and compaction. The <code>claude_code</code>
+harness runs Claude Code itself on a <code>claude</code> account: its own prompt, tools, settings, skills,
+sub-agents, and compaction. <code>codex_cli</code> does the same for Codex on a <code>codex</code> account.
+Antigravity, OpenCode, and other ACP agents sign in themselves, so each is offered as an account
+of its own, named after its harness.</p>
+<p>Either way the conversation stays a Happy conversation. Happy&#x27;s history is the record, and the
+agent&#x27;s own session is kept in step with it. Happy&#x27;s tools (projects, sub-agents, artifacts,
+messaging, and the rest) reach the agent over MCP, and Happy&#x27;s permission mode is mapped onto the
+agent&#x27;s own. Sending a message while the agent works steers it: Claude Code and Codex CLI take it
+mid-turn; Antigravity, OpenCode, and other ACP agents are interrupted and continue from the new
+message. Stop ends the agent&#x27;s turn and the commands it was running.</p>
+<div class="document-table-wrap"><table><thead><tr><th>Harness</th><th>Runs</th><th>On</th><th>Needs on the machine</th></tr></thead><tbody><tr><td><code>happy</code></td><td>Happy&#x27;s own loop</td><td>every provider (default)</td><td>nothing</td></tr><tr><td><code>claude_code</code></td><td>Claude Code, through the Agent SDK</td><td><code>claude</code> providers (default all)</td><td>nothing; Happy ships Claude Code</td></tr><tr><td><code>codex_cli</code></td><td>Codex, through <code>codex app-server</code></td><td><code>codex</code> providers (default all)</td><td>the pinned Codex, a <code>codex</code>, or <code>npx</code></td></tr><tr><td><code>antigravity</code></td><td>Antigravity, through <code>antigravity-acp</code></td><td>its own login</td><td><code>agy</code> signed in, Bun, and <code>npx</code></td></tr><tr><td><code>opencode</code></td><td>OpenCode, through <code>opencode acp</code></td><td>its own login</td><td><code>opencode</code> signed in</td></tr><tr><td>any, <code>acp</code></td><td>any ACP agent, from its <code>command</code></td><td>its own login</td><td>that agent, installed and signed in</td></tr></tbody></table></div>
+<h2 id="before-editing">Before editing<a class="heading-anchor" href="#before-editing" aria-label="Link to Before editing"><span aria-hidden="true">#</span></a></h2>
+<p>Follow <a href="https://happy.engineering/recepies/accounts-and-models/#before-editing">Accounts and models</a>: the file is the user
+<code>happy.toml</code>, read it with credentials redacted, back it up, and never print or copy credentials.</p>
+<h2 id="add-harnesses">Add harnesses<a class="heading-anchor" href="#add-harnesses" aria-label="Link to Add harnesses"><span aria-hidden="true">#</span></a></h2>
+<p>Accounts stay as they are. Add a <code>[harnesses.&lt;id&gt;]</code> table per harness; writing the table turns
+it on, and <code>enabled = false</code> turns it off again. Built-in IDs need no <code>type</code>.</p>
+<pre><code class="language-toml">[providers.claude]                       # built-in; shows as &quot;Current CLI&quot;
+enabled = true
+
+[providers.claude_alex_acme]
+type = &quot;claude&quot;
+name = &quot;alex acme&quot;
+oauth_token = &quot;&lt;from claude setup-token&gt;&quot;
+
+[providers.codex]                        # built-in; shows as &quot;Current CLI&quot;
+enabled = true
+
+[harnesses.claude_code]                  # Claude Code on these accounts
+providers = [&quot;claude&quot;, &quot;claude_alex_acme&quot;]   # default: every type = &quot;claude&quot; provider
+
+[harnesses.codex_cli]                    # Codex CLI on every codex account
+# command = &quot;codex&quot;                      # optional: a codex of your choice
+# args = [&quot;app-server&quot;]
+
+[harnesses.antigravity]                  # shows as &quot;Antigravity&quot;
+
+[harnesses.opencode]                     # shows as &quot;OpenCode&quot;
+
+[harnesses.goose]                        # any ACP agent
+type = &quot;acp&quot;
+name = &quot;Goose&quot;
+command = &quot;goose&quot;
+args = [&quot;acp&quot;]
+env = { GOOSE_PROVIDER = &quot;openai&quot; }
+</code></pre>
+<p><code>[harnesses.happy]</code> exists by default. Give it <code>providers = [...]</code> to keep Happy&#x27;s own loop to
+those accounts, or <code>enabled = false</code> to leave only foreign agents.</p>
+<p>Claude Code uses the account&#x27;s <code>oauth_token</code>, <code>api_key</code>, <code>auth_token</code>, or <code>config_dir</code>, or the
+machine&#x27;s Claude Code login for the built-in <code>claude</code>. Codex CLI uses the account&#x27;s <code>api_key</code>, or
+the folder holding its <code>auth_file</code> (which must be named <code>auth.json</code>) as <code>CODEX_HOME</code>, or
+<code>~/.codex</code> for the built-in <code>codex</code>. Antigravity and OpenCode use their own logins; set <code>api_key</code>
+on their harness to use a key instead. A generic <code>acp</code> agent gets credentials only through <code>env</code>
+or its own login.</p>
+<p>Then <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#applying-configuration-changes" target="_blank" rel="noreferrer">reload the daemon</a>.</p>
+<h2 id="models">Models<a class="heading-anchor" href="#models" aria-label="Link to Models"><span aria-hidden="true">#</span></a></h2>
+<p>Each agent decides which models exist. Each time the daemon starts, it starts every enabled
+harness once per account in the background, opens an empty session without prompting it, reads
+the models and efforts the agent offers, and keeps the answer. Model IDs are
+<code>&lt;harness type&gt;/&lt;the agent&#x27;s own model value&gt;</code>, such as <code>claude-code/opus</code>,
+<code>codex-cli/gpt-6.1-sol</code>, <code>opencode/openai/gpt-5.5</code>, or <code>acp/goose/&lt;model&gt;</code> for a generic agent.</p>
+<p>The picker lists each account&#x27;s models from every harness on it: Happy&#x27;s models and, beside them,
+<code>Claude Code · Opus</code> and the rest. Until an agent has answered once, Claude Code, Codex CLI, and
+Antigravity offer a short built-in list; OpenCode and generic ACP agents offer nothing. If an
+agent never answers, the daemon log says why, usually a missing login or command.</p>
+<p>The harness picks, hides, and orders from what its agent offers:</p>
+<pre><code class="language-toml">[harnesses.claude_code]
+include_models = [&quot;claude-code/opus&quot;, &quot;claude-code/sonnet&quot;]   # only these, in this order
+exclude_models = [&quot;claude-code/haiku&quot;]
+</code></pre>
+<p>IDs the agent does not offer are ignored, and <code>exclude_models</code> wins. An account&#x27;s own
+<code>include_models</code> and <code>exclude_models</code> still apply to every model on it, so list Claude Code models
+there too when the account already filters. Smart pools never rotate foreign agents: a Claude Code
+or Codex conversation stays on the account that started it. Switching a conversation between
+Happy&#x27;s loop and a foreign agent starts a fresh context with a handoff.</p>
+<h2 id="sub-agents">Sub-agents<a class="heading-anchor" href="#sub-agents" aria-label="Link to Sub-agents"><span aria-hidden="true">#</span></a></h2>
+<p>Any Happy agent creates sub-agents with <code>create_agent</code> and subtasks with <code>create_subtask</code>, on any
+harness its own harness reaches. Both take <code>harness</code>, <code>provider</code>, <code>model</code>, and <code>effort</code>; an
+omitted <code>harness</code> or <code>provider</code> is the creator&#x27;s own when that serves the model, or the only one
+that does. Their descriptions list the models the agent can start agents on, one line per model
+with its harness, accounts, and efforts, as they were when the conversation began; they never
+change, so the prompt cache holds. When the list changes, the agent gets a hidden system notice
+with the lines removed and added. <code>agent_options</code> lists the current models, and
+<code>agent_options({ usage: true })</code> adds each account&#x27;s quota: the daemon&#x27;s latest reading for
+Claude, Codex, and Grok accounts, and what Antigravity reports for its own.</p>
+<p>By default Happy&#x27;s own loop reaches only foreign harnesses whose models it cannot run itself,
+which today is <code>antigravity</code>; Claude Code, Codex CLI, and OpenCode run models Happy already runs.
+A foreign harness reaches every other foreign harness but not Happy&#x27;s loop. Each harness always
+reaches itself. <code>subagent_harnesses</code> replaces the default for one harness:</p>
+<pre><code class="language-toml">[harnesses.happy]
+subagent_harnesses = [&quot;antigravity&quot;, &quot;claude_code&quot;]   # Happy may also start Claude Code agents
+
+[harnesses.antigravity]
+subagent_harnesses = []                               # Antigravity agents start only Antigravity
+</code></pre>
+<p>A sub-agent on a foreign harness is an ordinary Happy agent with its own foreign session. The
+foreign agent&#x27;s own sub-agents (Claude Code&#x27;s Task tool, Codex&#x27;s agents) stay inside it; Happy
+shows each as one tool call.</p>
+<h2 id="antigravity-from-happy">Antigravity from Happy<a class="heading-anchor" href="#antigravity-from-happy" aria-label="Link to Antigravity from Happy"><span aria-hidden="true">#</span></a></h2>
+<p>To let a Happy agent start Antigravity sessions on the user&#x27;s Google account:</p>
+<ol>
+<li>On the machine, install Antigravity&#x27;s <code>agy</code>, Bun, and Node&#x27;s <code>npx</code>. Have the user run <code>agy</code>
+once and sign in; Happy never handles the Google login.</li>
+<li>Add <code>[harnesses.antigravity]</code> and <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#applying-configuration-changes" target="_blank" rel="noreferrer">reload the daemon</a>.
+The <code>Antigravity</code> account appears in the picker with its models, such as
+<code>antigravity/gemini-3.8-flash</code>.</li>
+<li>From any Happy session, ask for an Antigravity sub-agent or subtask. The agent calls
+Antigravity models in <code>create_agent</code>&#x27;s description (<code>agent_options({ usage: true })</code> adds
+the quota left in each window, from <code>agy -p /usage</code>, read at most every five minutes), and
+starts it with
+<code>model = &quot;antigravity/gemini-3.8-flash&quot;</code>.</li>
+</ol>
+<p>The quota is shown to agents only; the app&#x27;s usage panel does not show Antigravity yet.</p>
+<h2 id="generic-acp-agents">Generic ACP agents<a class="heading-anchor" href="#generic-acp-agents" aria-label="Link to Generic ACP agents"><span aria-hidden="true">#</span></a></h2>
+<p>A generic agent gets Happy&#x27;s tools only if it accepts HTTP MCP servers over ACP. Its model
+selector must be an ACP session config option of category <code>model</code>. Happy&#x27;s permission mode
+answers the agent&#x27;s permission requests (Read only refuses them); everything the agent does
+without asking follows its own settings, so set those to match what the user expects.</p>
+<h2 id="check">Check<a class="heading-anchor" href="#check" aria-label="Link to Check"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>In a temporary project (see <a href="https://happy.engineering/recepies/#testing-a-deployed-node">Testing a deployed node</a>),
+start a session on the new harness&#x27;s model and confirm its models appear in the picker.</li>
+<li>Ask it to create a file with its own tools and then call a Happy tool, such as listing
+projects. Confirm both happen.</li>
+<li>Send a second message while it runs a long command and confirm it steers.</li>
+<li>From a Happy session, ask it to call <code>agent_options</code> and confirm the new harness&#x27;s models are listed
+when Happy reaches it, then to create a sub-agent on it.</li>
+</ol></div>

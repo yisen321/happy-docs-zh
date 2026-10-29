@@ -1,0 +1,19 @@
+<div class="document-content"><h1 id="the-original-happy-cli">最初的 Happy CLI<a class="heading-anchor" href="#the-original-happy-cli" aria-label="链接到最初的 Happy CLI"><span aria-hidden="true">#</span></a></h1>
+<p>最初的 Happy CLI（npm 上的 <code>happy</code>，原名 <code>happy-coder</code>）仍然可用，同一个 Happy 手机应用既能访问它，也能访问 Happy Desktop。它目前处于维护模式：继续获得关键修复，而新功能在 Happy Desktop 中推出。</p>
+<h2 id="what-the-cli-does">CLI 的作用<a class="heading-anchor" href="#what-the-cli-does" aria-label="链接到 CLI 的作用"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-sh">npm install -g happy
+
+happy claude
+happy codex
+</code></pre>
+<p><code>happy</code> 使用你平常的登录和参数来包装真正的 <code>claude</code> 或 <code>codex</code>，在会话离开电脑之前进行加密，并维持后台守护进程，让手机可以在没有连接终端的情况下启动和恢复会话。首次运行时，通过二维码配对电脑。完整参考见<a href="https://happy.engineering/docs/">原版 Happy CLI 文档</a>。</p>
+<h2 id="use-the-cli-alongside-happy-desktop">将 CLI 与 Happy Desktop 一起使用<a class="heading-anchor" href="#use-the-cli-alongside-happy-desktop" aria-label="链接到将 CLI 与 Happy Desktop 一起使用"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Desktop 不依赖 CLI，也不会安装它。</li>
+<li>你的账户和会话仍然可用。从<strong>设置 → 移动访问</strong>配对 Desktop 后，手机会将 CLI 和 Desktop 显示为同一账户下的两台机器。</li>
+<li>两者都将状态保存在 <code>~/.happy</code> 中。绝不要为了修复问题而删除它。</li>
+</ul>
+<h2 id="move-to-happy-desktop">转用 Happy Desktop<a class="heading-anchor" href="#move-to-happy-desktop" aria-label="链接到转用 Happy Desktop"><span aria-hidden="true">#</span></a></h2>
+<p>Happy Desktop 在一个应用中运行 Claude、Codex、Grok、Gemini 等，并复用你已经付费的订阅。会话由后台运行时管理，因此关闭窗口或重启后仍能保留，而且每个会话都可以在手机上访问。<a href="https://happy.engineering/#download">下载应用</a>，或从<a href="https://happy.engineering/quick-start/">快速开始</a>入手。</p>
+<h2 id="missing-something-from-the-cli">Desktop 缺少你在 CLI 中依赖的功能？<a class="heading-anchor" href="#missing-something-from-the-cli" aria-label="链接到 Desktop 缺少你在 CLI 中依赖的功能？"><span aria-hidden="true">#</span></a></h2>
+<p>如果你目前使用 CLI，而 Happy Desktop 缺少你依赖的功能，请在 X 上私信 Kirill（<a href="https://x.com/bra1n_dump" target="_blank" rel="noreferrer">@bra1n_dump</a>），告诉我们具体缺少什么。</p></div>

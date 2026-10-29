@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>将机器人接入 Telegram · Happy 中文手册（非官方）</title>
+<meta name="description" content="Happy 非官方中文手册：将机器人接入 Telegram。将机器人接入 Telegram # 当用户希望让其他人（包括用户自己）从 Telegram 与机器人交谈，或希望更改允许访问的人时，使用本操作指南。接入后，机器人仍留在 Happy 中，但可以通过 Telegram 联系。每位获准访问的人都会成为访客，并在机器人下拥有一个以自己名">
+<meta name="theme-color" content="#f5f0e7">
+<style>
+/* 复用欢迎页配色、双滚动区布局与响应式断点；仅使用系统字体。 */
+:root{color-scheme:light;color:#183f38;background:#f5f0e7;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px}a{color:inherit;text-decoration:none}h1,h2,h3,p{margin-top:0}.site-shell{overflow-x:hidden;overflow-x:clip}.page-width{width:min(1180px,calc(100% - 64px));margin:0 auto}.site-header-wrap{background:#f5f0e7;border-bottom:1px solid transparent;position:sticky;top:0;z-index:40}.site-header{align-items:center;display:flex;justify-content:space-between;min-height:60px}.site-header-brand{align-items:center;display:flex;gap:1.15rem;min-width:0}.wordmark{color:#183f38;font-size:1.05rem;font-weight:700;letter-spacing:-.04em;white-space:nowrap}.wordmark span{color:#e6522c;margin-left:.28em}.site-header nav{align-items:center;display:flex;gap:1.65rem;font-size:.86rem;font-weight:500}.site-header nav>a{opacity:.82}.site-header nav>a:hover{opacity:1}.site-header nav>a[aria-current=page]{opacity:1;text-decoration:underline 2px #e6522c;text-underline-offset:.5em}.nav-github{align-items:center;display:inline-flex;gap:.45rem;height:30px;opacity:1!important;position:relative;transition:color .2s ease}.nav-github:after{content:"";inset:-7px -4px;position:absolute}.nav-github svg{display:block}.nav-github-count{font-family:"DM Mono",monospace;font-size:.76rem;font-weight:500;white-space:nowrap}.nav-github:hover{color:#e6522c}
+.document-site-shell{min-height:100vh}.docs-layout{display:grid;gap:4rem;grid-template-columns:210px minmax(0,760px);min-height:calc(100vh - 61px);padding-bottom:7rem;padding-top:3.5rem}.docs-sidebar{align-self:start;max-height:calc(100vh - 3rem);overflow-y:auto;position:sticky;scrollbar-color:transparent transparent;scrollbar-width:thin;top:1.5rem}.docs-sidebar:hover,.docs-sidebar:focus-within{scrollbar-color:#183f3845 transparent}.docs-navigation{display:grid;gap:1.5rem}.docs-nav-group h2,.docs-nav-fold summary{color:#183f38;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-size:.77rem;font-weight:700;letter-spacing:0;margin:0 0 .5rem}.docs-nav-fold summary{align-items:center;cursor:pointer;display:flex;justify-content:space-between;list-style:none;margin:0;min-height:32px}.docs-nav-fold summary::-webkit-details-marker{display:none}.docs-nav-fold summary:after{border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor;content:"";height:5px;margin-right:.5rem;transform:rotate(-45deg);width:5px;flex:none}.docs-nav-fold[open] summary:after{transform:rotate(45deg)}.docs-nav-fold[open] summary{margin-bottom:.5rem}.docs-nav-fold summary:focus-visible{border-radius:4px;outline:2px solid #e6522c;outline-offset:3px}.docs-nav-group ul{display:grid;gap:.2rem;list-style:none;margin:0;padding:0}.docs-nav-group a{border-radius:7px;color:#557068;display:block;font-size:.78rem;line-height:1.35;padding:.38rem .5rem}.docs-nav-group a:hover{background:#ebe5d9;color:#183f38}.docs-nav-group a[aria-current]{background:#dbe2cd;color:#183f38;font-weight:600}.docs-mobile-navigation{display:none}
+.document-article{min-width:0}.document-content{color:#294c45;font-size:1rem;line-height:1.75}.document-content h1,.document-content h2,.document-content h3{color:#183f38;font-family:"Space Grotesk","DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:600;letter-spacing:-.025em;text-wrap:balance}.document-content h1[id],.document-content h2[id],.document-content h3[id]{scroll-margin-top:2rem}.document-content h1{font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.15;margin:0 0 1.2rem}.document-content h2{border-top:1px solid #ddd6c8;font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.15;margin:4rem 0 1.2rem;padding-top:2.2rem}.document-content .heading-anchor{color:#e6522c;font-size:.7em;margin-left:.35em;opacity:0;text-decoration:none}.document-content h1:hover .heading-anchor,.document-content h2:hover .heading-anchor,.document-content .heading-anchor:focus{opacity:.55}.document-content .heading-anchor:hover{opacity:1}.document-content p{margin:0 0 1.25rem;text-wrap:pretty}.document-content>p:first-of-type{color:#557068;font-size:1.08rem}.document-content strong{color:#183f38;font-weight:700}.document-content a{color:#d94725;text-decoration:underline;text-decoration-color:#d9472559;text-underline-offset:.2em}.document-content a:hover{text-decoration-color:currentColor}.document-content ul{margin:0 0 1.4rem;padding-left:1.45rem}.document-content li{margin:.35rem 0;padding-left:.2rem}.document-content li::marker{color:#e6522c}
+/* 其他文档中的表格、命令与媒体保持完整，窄屏允许横向滚动。 */
+.document-content pre{background:#ebe5d9;border:1px solid #d9d3c5;border-radius:8px;overflow-x:auto;padding:1.1rem;white-space:pre;font-size:.85rem;line-height:1.6}.document-content code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.document-content pre code{overflow-wrap:normal}.document-content img,.document-content video{max-width:100%;height:auto}.document-content iframe{max-width:100%}.document-content table{display:block;max-width:100%;overflow-x:auto;border-collapse:collapse;margin:1.5rem 0}.document-content th,.document-content td{border:1px solid #d9d3c5;padding:.65rem .85rem;text-align:left}.document-content blockquote{border-left:3px solid #e6522c;margin:1.5rem 0;padding:.25rem 1rem;color:#557068}
+.document-pagination{border-top:1px solid #d9d3c5;display:grid;gap:1rem;grid-template-columns:1fr 1fr;margin-top:5rem;padding-top:1.5rem}.document-pagination a{border:1px solid #d5cebf;border-radius:10px;color:#183f38;font-size:.88rem;font-weight:600;padding:1rem}.document-pagination a:hover{border-color:#183f38}.document-pagination a span{color:#6b7f78;display:block;font-family:"DM Mono",monospace;font-size:.58rem;font-weight:500;letter-spacing:.06em;margin-bottom:.25rem;text-transform:uppercase}.document-pagination-next{text-align:right}
+.site-footer{background:#f0ebe0;border-top:1px solid #d9d3c5;padding:3.5rem 0}.footer-inner{display:grid;gap:2.5rem;grid-template-columns:1.4fr 1fr;align-items:start}.footer-statement{font-family:"Space Grotesk","DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:500;font-size:1.3rem;letter-spacing:-.01em;line-height:1.4;margin:0;max-width:30ch}.footer-meta{text-align:right}.footer-meta p{color:#47645e;font-size:.78rem;margin:.6rem 0 0}.footer-meta .footer-descriptor{color:#183f38;font-size:.9rem;margin-top:.45rem}.footer-links{display:flex;flex-wrap:wrap;font-size:.8rem;gap:.6rem 1.25rem;justify-content:flex-end;margin-bottom:1.1rem}.footer-links a{border-bottom:1px solid transparent}.footer-links a:hover{border-color:currentColor}.footer-links .footer-link-quiet{color:#6b7f78}.footer-people{display:block;margin-top:.85rem;font-family:"DM Sans",Arial,"PingFang SC","Microsoft YaHei",sans-serif;font-size:.95rem;font-weight:400}.footer-people a{text-decoration:underline;text-underline-offset:3px}
+@media(min-width:761px){.docs-shell{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}.docs-shell .site-header-wrap{flex:0 0 auto}.docs-shell .docs-layout{flex:1 1 auto;margin:0;max-width:none;min-height:0;overflow:hidden;padding:0 0 0 max(32px,calc((100% - 1180px)/2));width:100%;grid-template-columns:210px minmax(0,1fr);column-gap:0}.docs-shell .docs-sidebar{align-self:stretch;height:100%;max-height:none;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:1.75rem 2px 3rem;position:static}.docs-shell .document-article{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:1.75rem 0 0 4rem;position:relative;scrollbar-width:thin;scrollbar-color:#183f3845 transparent}.docs-shell .document-article>.document-content,.docs-shell .document-article>.document-pagination{max-width:760px;padding-right:2rem}.docs-shell .site-footer{margin-top:4.5rem}.docs-shell .site-footer .footer-inner{margin:0;max-width:none;padding:0 3rem 0 2.5rem;width:auto}}
+@media(min-width:761px) and (max-width:900px){.docs-shell .docs-layout{grid-template-columns:190px minmax(0,1fr)}.docs-shell .document-article{padding-left:2.5rem}}
+@media(max-width:900px){.site-header nav{gap:1.2rem}}
+@media(max-width:760px){.page-width{width:min(100% - 40px,620px)}.site-header{gap:.75rem;min-height:52px}.site-header nav{gap:.85rem;font-size:.8rem}.site-header-brand{gap:.6rem}.footer-inner{grid-template-columns:1fr;gap:2rem}.footer-meta{text-align:left}.footer-links{justify-content:flex-start}.docs-mobile-navigation{border-bottom:1px solid #d9d3c5;display:block;padding-bottom:.25rem;padding-top:.25rem}.docs-mobile-trail{align-items:center;appearance:none;background:none;border:0;border-radius:7px;color:#183f38;cursor:pointer;display:flex;font-family:"DM Mono",monospace;font-size:12px;font-weight:500;gap:.5rem;letter-spacing:.06em;min-height:44px;padding:0;text-align:left;text-transform:uppercase;width:100%}.docs-mobile-trail:after{border-bottom:1.5px solid currentColor;border-right:1.5px solid currentColor;box-sizing:border-box;content:"";flex:none;height:6px;margin:0 4px 0 auto;transform:translateY(-1.5px) rotate(45deg);transition:transform .15s;width:6px}.docs-mobile-trail[aria-expanded=true]:after{transform:translateY(1.5px) rotate(-135deg)}.docs-mobile-trail:focus-visible{outline:2px solid #e6522c;outline-offset:2px}.docs-mobile-trail>span{flex:none}.docs-mobile-trail-group{color:#6b7f78}.docs-mobile-trail>.docs-mobile-trail-page{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.docs-mobile-menu{padding:.5rem 0 1rem}.docs-mobile-navigation .docs-navigation{gap:1.1rem;grid-template-columns:repeat(2,minmax(0,1fr))}.docs-sidebar{display:none}.docs-layout{display:block;min-height:0;padding-bottom:5rem;padding-top:2.5rem}.docs-shell{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}.docs-shell .docs-layout{display:flex;flex:1 0 auto;flex-direction:column;padding-bottom:0}.docs-shell .document-article{display:flex;flex:1 0 auto;flex-direction:column}.docs-shell .document-article>*{min-width:0}.docs-shell .document-pagination{margin-bottom:4rem}.docs-shell .site-footer{margin:auto calc(50% - 50vw) 0}.document-content h1[id],.document-content h2[id]{scroll-margin-top:72px}.document-content h2{margin-top:3.2rem}}
+@media(max-width:420px){.site-header nav{gap:.7rem}.site-header-brand{gap:.55rem}.wordmark{font-size:.98rem}.nav-github{gap:.35rem}.docs-mobile-navigation .docs-navigation,.document-pagination{grid-template-columns:1fr}.document-pagination-next{text-align:left}}
+
+</style>
+</head>
+<body><div id="app"><div class="site-shell document-site-shell docs-shell">
+<div class="site-header-wrap"><header class="site-header page-width" id="top"><div class="site-header-brand"><a class="wordmark" href="https://happy.engineering/" aria-label="Happy Engineering 官方首页">Happy<span>Engineering</span></a></div><nav aria-label="主导航"><a href="../../index.html" aria-current="page">文档</a><a class="nav-github" href="https://github.com/slopus/happy" target="_blank" rel="noopener noreferrer" aria-label="GitHub 上的 Happy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg><span class="nav-github-count">24k</span></a></nav></header></div>
+<div class="docs-mobile-navigation page-width"><button type="button" class="docs-mobile-trail" aria-expanded="false" aria-controls="docs-mobile-menu"><span class="docs-mobile-trail-group">操作配方（面向智能体）</span><span aria-hidden="true">/</span><span class="docs-mobile-trail-page">将机器人接入 Telegram</span></button><div id="docs-mobile-menu" class="docs-mobile-menu" hidden><nav class="docs-navigation" aria-label="文档导航"><section class="docs-nav-group"><h2>从这里开始</h2><ul><li><a href="../../index.html">欢迎</a></li><li><a href="../../quick-start/index.html">快速开始</a></li><li><a href="../../chief-of-staff/index.html">参谋长</a></li><li><a href="../../how-it-works/index.html">工作原理</a></li><li><a href="../../vision/index.html">愿景</a></li><li><a href="../../team/index.html">团队</a></li></ul></section>
+<section class="docs-nav-group"><h2>功能</h2><ul><li><a href="../../models/index.html">模型与订阅</a></li><li><a href="../../permissions/index.html">权限与沙箱</a></li><li><a href="../../secrets/index.html">密钥管理</a></li><li><a href="../../workspaces/index.html">项目与工作区</a></li><li><a href="../../agents/index.html">永不终止的智能体</a></li><li><a href="../../mobile/index.html">移动端访问</a></li><li><a href="../../multiplayer/index.html">多人协作与团队</a></li><li><a href="../../extending/index.html">技能与 MCP</a></li></ul></section>
+<section class="docs-nav-group"><h2>指南</h2><ul><li><a href="../../guides/terminal/index.html">原版 Happy CLI</a></li><li><a href="../../guides/configuration/index.html">配置</a></li><li><a href="../../guides/remote-server/index.html">远程服务器</a></li></ul></section>
+<section class="docs-nav-group"><h2>博客</h2><ul><li><a href="../../workos/index.html">通过 WorkOS 实现团队登录</a></li><li><a href="../../tailcat/index.html">无需开放端口：Tailcat</a></li><li><a href="../../voice/index.html">通过 ElevenLabs 实现语音交互</a></li><li><a href="../../updates/index.html">在交互轮次中途更新</a></li><li><a href="../../stem-cell/index.html">干细胞</a></li></ul></section>
+<section class="docs-nav-group"><h2>对比</h2><ul><li><a href="../../desktop-app/index.html">适用于 Claude Code 与 Codex 的桌面应用</a></li><li><a href="../../mobile-app/index.html">在手机上使用 Claude Code</a></li><li><a href="../../claude-code-remote-control/index.html">Happy 与 Remote Control 对比</a></li><li><a href="../../t3-code/index.html">Happy 与 T3 Code 对比</a></li></ul></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>更新日志</summary><ul><li><a href="../../changelog/index.html">更新日志</a></li></ul></details></section>
+<section class="docs-nav-group"><details class="docs-nav-fold" open><summary>操作配方（面向智能体）</summary><ul><li><a href="../index.html">操作配方</a></li><li><a href="../first-project/index.html">从一个项目开始</a></li><li><a href="../mobile-access/index.html">设置或修复移动端访问</a></li><li><a href="../accounts-and-models/index.html">账号、模型、推理强度与服务层级</a></li><li><a href="../harnesses/index.html">运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体</a></li><li><a href="../wsl/index.html">在 Windows 中设置 WSL 项目</a></li><li><a href="index.html" aria-current="page">将机器人接入 Telegram</a></li><li><a href="../chat-bridge/index.html">将机器人接入任意聊天服务</a></li><li><a href="../bot-settings/index.html">通过机器人设置限制机器人</a></li><li><a href="../shared-app/index.html">构建实时共享的 HTML 产物</a></li><li><a href="../peer-messaging/index.html">通过单个 WebSocket 连接两个 Happy 智能体</a></li><li><a href="../rest-api/index.html">通过 REST API 驱动 Happy 智能体</a></li><li><a href="../remote-agent/index.html">部署独立的远程智能体</a></li><li><a href="../team/index.html">创建并部署 Happy 团队</a></li><li><a href="../runner/index.html">添加专用运行节点</a></li><li><a href="../hardening/index.html">使用独立 Linux 用户加固节点</a></li><li><a href="../enterprise-sign-in/index.html">设置企业 JWT 登录</a></li><li><a href="../upgrade/index.html">升级 Happy 智能体</a></li></ul></details></section></nav></div></div>
+<main class="docs-layout page-width"><aside class="docs-sidebar"><nav class="docs-navigation" aria-label="文档导航"><section class="docs-nav-group"><h2>从这里开始</h2><ul><li><a href="../../index.html">欢迎</a></li><li><a href="../../quick-start/index.html">快速开始</a></li><li><a href="../../chief-of-staff/index.html">参谋长</a></li><li><a href="../../how-it-works/index.html">工作原理</a></li><li><a href="../../vision/index.html">愿景</a></li><li><a href="../../team/index.html">团队</a></li></ul></section>
+<section class="docs-nav-group"><h2>功能</h2><ul><li><a href="../../models/index.html">模型与订阅</a></li><li><a href="../../permissions/index.html">权限与沙箱</a></li><li><a href="../../secrets/index.html">密钥管理</a></li><li><a href="../../workspaces/index.html">项目与工作区</a></li><li><a href="../../agents/index.html">永不终止的智能体</a></li><li><a href="../../mobile/index.html">移动端访问</a></li><li><a href="../../multiplayer/index.html">多人协作与团队</a></li><li><a href="../../extending/index.html">技能与 MCP</a></li></ul></section>
+<section class="docs-nav-group"><h2>指南</h2><ul><li><a href="../../guides/terminal/index.html">原版 Happy CLI</a></li><li><a href="../../guides/configuration/index.html">配置</a></li><li><a href="../../guides/remote-server/index.html">远程服务器</a></li></ul></section>
+<section class="docs-nav-group"><h2>博客</h2><ul><li><a href="../../workos/index.html">通过 WorkOS 实现团队登录</a></li><li><a href="../../tailcat/index.html">无需开放端口：Tailcat</a></li><li><a href="../../voice/index.html">通过 ElevenLabs 实现语音交互</a></li><li><a href="../../updates/index.html">在交互轮次中途更新</a></li><li><a href="../../stem-cell/index.html">干细胞</a></li></ul></section>
+<section class="docs-nav-group"><h2>对比</h2><ul><li><a href="../../desktop-app/index.html">适用于 Claude Code 与 Codex 的桌面应用</a></li><li><a href="../../mobile-app/index.html">在手机上使用 Claude Code</a></li><li><a href="../../claude-code-remote-control/index.html">Happy 与 Remote Control 对比</a></li><li><a href="../../t3-code/index.html">Happy 与 T3 Code 对比</a></li></ul></section>
+<section class="docs-nav-group"><details class="docs-nav-fold"><summary>更新日志</summary><ul><li><a href="../../changelog/index.html">更新日志</a></li></ul></details></section>
+<section class="docs-nav-group"><details class="docs-nav-fold" open><summary>操作配方（面向智能体）</summary><ul><li><a href="../index.html">操作配方</a></li><li><a href="../first-project/index.html">从一个项目开始</a></li><li><a href="../mobile-access/index.html">设置或修复移动端访问</a></li><li><a href="../accounts-and-models/index.html">账号、模型、推理强度与服务层级</a></li><li><a href="../harnesses/index.html">运行框架：Claude Code、Codex CLI、Antigravity、OpenCode 与 ACP 智能体</a></li><li><a href="../wsl/index.html">在 Windows 中设置 WSL 项目</a></li><li><a href="index.html" aria-current="page">将机器人接入 Telegram</a></li><li><a href="../chat-bridge/index.html">将机器人接入任意聊天服务</a></li><li><a href="../bot-settings/index.html">通过机器人设置限制机器人</a></li><li><a href="../shared-app/index.html">构建实时共享的 HTML 产物</a></li><li><a href="../peer-messaging/index.html">通过单个 WebSocket 连接两个 Happy 智能体</a></li><li><a href="../rest-api/index.html">通过 REST API 驱动 Happy 智能体</a></li><li><a href="../remote-agent/index.html">部署独立的远程智能体</a></li><li><a href="../team/index.html">创建并部署 Happy 团队</a></li><li><a href="../runner/index.html">添加专用运行节点</a></li><li><a href="../hardening/index.html">使用独立 Linux 用户加固节点</a></li><li><a href="../enterprise-sign-in/index.html">设置企业 JWT 登录</a></li><li><a href="../upgrade/index.html">升级 Happy 智能体</a></li></ul></details></section></nav></aside>
+<article class="document-article" data-document="recepies/telegram"><div class="document-content"><div class="document-content"><h1 id="export-a-bot-to-telegram">将机器人接入 Telegram<a class="heading-anchor" href="#export-a-bot-to-telegram" aria-label="链接到将机器人接入 Telegram"><span aria-hidden="true">#</span></a></h1>
+<p>当用户希望让其他人（包括用户自己）从 Telegram 与机器人交谈，或希望更改允许访问的人时，使用本操作指南。接入后，机器人仍留在 Happy 中，但可以通过 Telegram 联系。每位获准访问的人都会成为访客，并在机器人下拥有一个以自己名字命名的独立子任务；机器人对每条消息的回复都会返回该访客的私聊。Happy 机器人使用 Telegram 机器人的名称，两者共用同一张头像，方便大家在两个地方识别它。详细参考见<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#exported-bots" target="_blank" rel="noreferrer">配置文档</a>。</p>
+<h2 id="a-separate-bot-not-the-chief-of-staff">使用独立机器人，而不是参谋长<a class="heading-anchor" href="#a-separate-bot-not-the-chief-of-staff" aria-label="链接到使用独立机器人，而不是参谋长"><span aria-hidden="true">#</span></a></h2>
+<p>应接入一个专为这项工作创建的独立机器人，绝不能接入参谋长，也就是你自己。从 Telegram 与机器人交谈的每个人，都会获得一个在该机器人文件夹中工作、能访问该机器人可访问内容的对话，因此，对外提供的机器人只能拥有用户为这些人选定的文件夹和用途。你自己的对话、文件夹和管理工具仍由用户专享。</p>
+<p>你只通过以下两种方式参与：</p>
+<ul>
+<li>将机器人接入 Telegram、更改接入设置，以及停止接入。所有修改接入设置的工具都要求提供机器人的 <code>botId</code>，因此不会默认作用于你自己。</li>
+<li>决定允许谁访问。尚未获准的人给机器人发消息时，其申请会到达你的对话；用户说明允许还是拒绝后，你再针对该机器人批准或拒绝申请。</li>
+</ul>
+<p>这些工具属于你，因为你是管理员机器人；接入 Telegram 的机器人永远不会拥有它们。每项更改都会立即生效，无须编辑文件或重新加载。如果工具尚未加载，按名称搜索即可。</p>
+<div class="document-table-wrap"><table><thead><tr><th>工具</th><th>用途</th></tr></thead><tbody><tr><td><code>set_telegram_exported_bot</code></td><td>将机器人接入 Telegram，或更改令牌、允许名单、陌生人处理方式，或暂停接入。</td></tr><tr><td><code>get_exported_bot_status</code></td><td>查看是否已连接、允许哪些人访问，以及哪些人正在等待批准。</td></tr><tr><td><code>approve_exported_bot_user</code></td><td>用户同意后，允许提出申请的人访问。</td></tr><tr><td><code>deny_exported_bot_user</code></td><td>用户拒绝后，拒绝提出申请的人访问。</td></tr><tr><td><code>remove_exported_bot</code></td><td>停止将机器人接入 Telegram（<code>kind: &quot;telegram&quot;</code>），并删除其令牌。</td></tr></tbody></table></div>
+<p>你还会使用 <code>list_bots</code>、<code>create_bot</code>、<code>set_bot_name</code> 和 <code>set_bot_avatar</code>，为相关操作传入对外接入机器人的 <code>botId</code>；并通过 shell 向 Telegram 发起少量调用，以读取和设置机器人的名称与头像。</p>
+<h2 id="what-the-user-does-and-what-you-do">用户做什么，你做什么<a class="heading-anchor" href="#what-the-user-does-and-what-you-do" aria-label="链接到用户做什么，你做什么"><span aria-hidden="true">#</span></a></h2>
+<p>只有用户能创建 Telegram 机器人并向它发送消息。其他事情都由你负责。</p>
+<div class="document-table-wrap"><table><thead><tr><th>步骤</th><th>负责人</th></tr></thead><tbody><tr><td>检查是否已接入</td><td>你</td></tr><tr><td>通过 @BotFather 创建 Telegram 机器人</td><td>用户</td></tr><tr><td>提供令牌</td><td>用户</td></tr><tr><td>读取 Telegram 机器人的名称</td><td>你</td></tr><tr><td>使用 Telegram 名称创建 Happy 机器人</td><td>你</td></tr><tr><td>统一两边的头像</td><td>你；如果用户有图片，则使用用户的图片</td></tr><tr><td>接入机器人</td><td>你</td></tr><tr><td>给 Telegram 机器人发送消息</td><td>用户</td></tr><tr><td>批准用户的访问申请</td><td>你，在用户确认后</td></tr><tr><td>验证是否收到回复</td><td>双方</td></tr></tbody></table></div>
+<h2 id="1-check-for-an-existing-export">1. 检查是否已接入<a class="heading-anchor" href="#1-check-for-an-existing-export" aria-label="链接到 1. 检查是否已接入"><span aria-hidden="true">#</span></a></h2>
+<p>先调用 <code>get_exported_bot_status</code>。如果用户所指的机器人已经接入 Telegram，这次就是修改设置：跳到适用步骤，或跳到“后续更改”。</p>
+<p>如果用户希望接入一个已有的 Happy 机器人，而不是你自己，用 <code>list_bots</code> 找到其 ID，并跳过第 4 步。在第 3 步读取 Telegram 名称，然后将该名称及机器人的 <code>botId</code> 传给 <code>set_bot_name</code>；也可以询问用户希望两边统一使用什么名称。第 5 步仍需统一头像。</p>
+<p>如果用户希望从 Telegram 联系你自己，说明需要为接入创建独立机器人，并提议创建一个。它的访问申请仍会由你接收。</p>
+<h2 id="2-create-the-telegram-bot">2. 创建 Telegram 机器人<a class="heading-anchor" href="#2-create-the-telegram-bot" aria-label="链接到 2. 创建 Telegram 机器人"><span aria-hidden="true">#</span></a></h2>
+<p>请用户在 Telegram 中完成以下操作：</p>
+<ol>
+<li>打开与 <strong>@BotFather</strong> 的聊天，发送 <code>/newbot</code>。</li>
+<li>选择一个显示名称，例如“Scout”，再选择一个以 <code>bot</code> 结尾的用户名，例如 <code>scout_happy_bot</code>。Happy 机器人也会使用这个显示名称，因此用户应选择一个自己在 Happy 中也希望看到的名称。</li>
+<li>可以发送 <code>/setuserpic</code>，立即为机器人设置头像。如果跳过这一步，你可以制作一张。</li>
+<li>复制 BotFather 回复的令牌，格式类似 <code>123456789:AAH…</code>，粘贴到这里。</li>
+</ol>
+<p>如果用户已经有用于此用途的 Telegram 机器人，只需要提供令牌即可（在 @BotFather 中发送 <code>/token</code> 可以查看）。</p>
+<p>告诉用户：令牌会保留在本次对话历史中，并由 Happy Agent 存储；任何持有令牌的人都能以其 Telegram 机器人的身份操作。绝不能把令牌复述给用户、写入命令，或发送到 Telegram 和 <code>set_telegram_exported_bot</code> 之外的任何地方。</p>
+<p>每个 Happy 机器人都需要独立的 Telegram 机器人：Telegram 只允许一个程序读取同一机器人的消息，因此，已经用于接入另一个机器人的令牌会被拒绝。</p>
+<h2 id="3-read-the-telegram-bot-s-name">3. 读取 Telegram 机器人的名称<a class="heading-anchor" href="#3-read-the-telegram-bot-s-name" aria-label="链接到 3. 读取 Telegram 机器人的名称"><span aria-hidden="true">#</span></a></h2>
+<p>创建 Happy 机器人前，先读取 Telegram 机器人的身份信息。其用户名将作为 Happy 机器人用户名的基础，而 Happy 用户名决定机器人文件夹的名称，且永远不能更改。</p>
+<h3 id="calling-telegram-from-your-shell">通过 shell 调用 Telegram<a class="heading-anchor" href="#calling-telegram-from-your-shell" aria-label="链接到通过 shell 调用 Telegram"><span aria-hidden="true">#</span></a></h3>
+<p>第 3 步和第 5 步中的调用会从你的 shell 发往 <code>api.telegram.org</code>。在你自己的文件夹中运行，也就是 shell 的起始目录，并确保所有命令都不包含令牌：</p>
+<ol>
+<li>
+<p>创建一个私有临时文件夹：</p>
+<pre><code class="language-sh">mkdir -p telegram-sync &amp;&amp; chmod 700 telegram-sync
+</code></pre>
+</li>
+<li>
+<p>使用文件写入工具，将令牌单独写入 <code>telegram-sync/token</code>，不要使用 shell 命令写入。然后将其设为私有：</p>
+<pre><code class="language-sh">chmod 600 telegram-sync/token &amp;&amp; ls -l telegram-sync/token
+</code></pre>
+</li>
+<li>
+<p>下方每次调用都会从该文件读取令牌，通过管道送入 curl 的配置，因此令牌不会出现在命令行、进程列表、权限审查或输出中。原样复制命令，只修改明确指出的值，绝不能添加 <code>-v</code>、<code>--trace</code> 或任何会打印令牌或请求 URL 的选项。</p>
+</li>
+</ol>
+<p>除非用户已允许访问 <code>api.telegram.org</code>，否则 shell 沙箱会阻止联网。如果调用因“Couldn't connect”或网络被阻止错误而失败，使用 shell 工具中申请经审查主机访问权限的选项，仅重新运行该条命令，并说明这会使用用户提供的令牌调用 Telegram Bot API，读取或设置该机器人的名称或头像。说明中绝不能包含令牌。如果申请被拒绝，或权限模式为 Read only（只读）或 Workspace write（工作区写入），使用第 5 步中的 @BotFather 备用方式，并告诉用户原因。</p>
+<p>用户已经将令牌粘贴到本次对话；这些步骤旨在防止它进一步扩散。完成后应按第 5 步所述删除 <code>telegram-sync</code>，即使中途发生失败也应如此。</p>
+<h3 id="read-the-name">读取名称<a class="heading-anchor" href="#read-the-name" aria-label="链接到读取名称"><span aria-hidden="true">#</span></a></h3>
+<pre><code class="language-sh">printf &#x27;url = &quot;https://api.telegram.org/bot%s/getMe&quot;\n&#x27; &quot;$(cat telegram-sync/token)&quot; | curl -sS -K -
+</code></pre>
+<p>Telegram 会返回机器人自身的用户信息：</p>
+<pre><code class="language-json">{
+    &quot;ok&quot;: true,
+    &quot;result&quot;: {
+        &quot;id&quot;: 123456789,
+        &quot;is_bot&quot;: true,
+        &quot;first_name&quot;: &quot;Scout&quot;,
+        &quot;username&quot;: &quot;scout_happy_bot&quot;
+    }
+}
+</code></pre>
+<p>记下 <code>id</code>（后续获取头像需要）、<code>first_name</code>（会成为 Happy 机器人的名称）以及 <code>username</code>。如果返回 <code>&quot;ok&quot;: false</code> 且错误码为 <code>401</code>，说明令牌不正确：请用户提供当前令牌（在 @BotFather 中发送 <code>/token</code>）。</p>
+<h2 id="4-create-the-happy-bot">4. 创建 Happy 机器人<a class="heading-anchor" href="#4-create-the-happy-bot" aria-label="链接到 4. 创建 Happy 机器人"><span aria-hidden="true">#</span></a></h2>
+<p>调用 <code>create_bot</code>，传入：</p>
+<ul>
+<li><code>name</code>：Telegram 机器人的 <code>first_name</code>，与 Telegram 返回的内容完全一致。</li>
+<li><code>username</code>：以 Telegram 的 <code>username</code> 为基础，转为小写，并去掉末尾的 <code>bot</code> 或 <code>_bot</code>；例如，<code>scout_happy_bot</code> 对应 <code>scout_happy</code>，<code>ScoutBot</code> 对应 <code>scout</code>。它只能包含小写字母、数字和 <code>_</code>，且必须以字母开头；如果处理后无法得到合理名称，就省略此项，由 Happy 选择。</li>
+</ul>
+<p>用户名决定机器人的文件夹名称，并且永远无法更改，因此现在就要选对；显示名称以后可通过 <code>set_bot_name</code> 修改。如果用户名已被占用，选择另一个合理名称，例如在原名称后添加 <code>_telegram</code>。记下新机器人的 <code>botId</code>。</p>
+<h2 id="5-match-the-pictures">5. 统一头像<a class="heading-anchor" href="#5-match-the-pictures" aria-label="链接到 5. 统一头像"><span aria-hidden="true">#</span></a></h2>
+<p>查询 Telegram 机器人的头像，用第 3 步中的 <code>id</code> 替换 <code>123456789</code>：</p>
+<pre><code class="language-sh">printf &#x27;url = &quot;https://api.telegram.org/bot%s/getUserProfilePhotos?user_id=%s&amp;limit=1&quot;\n&#x27; &quot;$(cat telegram-sync/token)&quot; 123456789 | curl -sS -K -
+</code></pre>
+<p>Telegram 机器人没有头像时，<code>result.total_count</code> 为 <code>0</code>。否则，<code>result.photos[0]</code> 是当前头像，由最多四种尺寸组成。接下来：</p>
+<div class="document-table-wrap"><table><thead><tr><th>Telegram 有头像</th><th>Happy 机器人有头像，或用户提供了图片</th><th>操作</th></tr></thead><tbody><tr><td>是</td><td>不论是否有</td><td>将 Telegram 的头像复制到 Happy。</td></tr><tr><td>否</td><td>是</td><td>将 Happy 的头像上传到 Telegram。</td></tr><tr><td>否</td><td>否</td><td>制作一张或请用户提供，然后上传。</td></tr></tbody></table></div>
+<p>如果两边都有头像，以 Telegram 的为准：那是用户在 @BotFather 中选择的。</p>
+<h3 id="copy-telegram-s-picture-to-the-happy-bot">将 Telegram 的头像复制到 Happy 机器人<a class="heading-anchor" href="#copy-telegram-s-picture-to-the-happy-bot" aria-label="链接到将 Telegram 的头像复制到 Happy 机器人"><span aria-hidden="true">#</span></a></h3>
+<ol>
+<li>
+<p>取 <code>result.photos[0]</code> 中最大尺寸的 <code>file_id</code>，即 <code>width</code> 最大的那一项，用它替换 <code>FILE_ID</code>，向 Telegram 查询文件位置：</p>
+<pre><code class="language-sh">printf &#x27;url = &quot;https://api.telegram.org/bot%s/getFile?file_id=%s&quot;\n&#x27; &quot;$(cat telegram-sync/token)&quot; &#x27;FILE_ID&#x27; | curl -sS -K -
+</code></pre>
+</li>
+<li>
+<p>下载文件，将 <code>FILE_PATH</code> 替换为响应中的 <code>result.file_path</code>，例如 <code>photos/file_0.jpg</code>：</p>
+<pre><code class="language-sh">printf &#x27;url = &quot;https://api.telegram.org/file/bot%s/%s&quot;\n&#x27; &quot;$(cat telegram-sync/token)&quot; &#x27;FILE_PATH&#x27; | curl -sS --fail -o telegram-sync/telegram-photo.jpg -K -
+</code></pre>
+</li>
+<li>
+<p>调用 <code>set_bot_avatar</code>，传入 <code>path: &quot;telegram-sync/telegram-photo.jpg&quot;</code> 和 Happy 机器人的 <code>botId</code>。图片必须位于你自己的文件夹内，此路径符合要求。</p>
+</li>
+</ol>
+<h3 id="upload-a-happy-picture-to-telegram">将 Happy 头像上传到 Telegram<a class="heading-anchor" href="#upload-a-happy-picture-to-telegram" aria-label="链接到将 Happy 头像上传到 Telegram"><span aria-hidden="true">#</span></a></h3>
+<p>你需要将图片文件放入 <code>telegram-sync</code>：</p>
+<ul>
+<li>如果用户提供图片，请用户将它作为本机文件提供，再复制到该文件夹。</li>
+<li>如果两个机器人都没有头像，使用图像生成工具制作一张适合机器人工作的正方形图片，并展示给用户。生成的图片保存在你的文件夹之外，因此需将文件复制到 <code>telegram-sync</code>。</li>
+<li>如果已有的 Happy 机器人已经有头像，目前没有工具能直接提供其文件。请用户提供原图，或提议制作新图并替换两边的头像。</li>
+</ul>
+<p>然后：</p>
+<ol>
+<li>
+<p>除非 Happy 机器人已经显示这张图片，否则调用 <code>set_bot_avatar</code>，传入图片在 <code>telegram-sync</code> 中的路径和 Happy 机器人的 <code>botId</code>。</p>
+</li>
+<li>
+<p>Telegram 的头像仅接受 JPEG。使用 <code>file telegram-sync/&lt;name&gt;</code> 检查文件；如果不是 JPEG，使用本机已安装的下列任一工具转换：</p>
+<pre><code class="language-sh">magick telegram-sync/avatar.png -background white -flatten -quality 90 telegram-sync/avatar.jpg
+sips -s format jpeg telegram-sync/avatar.png --out telegram-sync/avatar.jpg
+ffmpeg -loglevel error -i telegram-sync/avatar.png telegram-sync/avatar.jpg
+</code></pre>
+<p><code>magick</code> 是 ImageMagick 7 的命令（版本 6 使用 <code>convert</code>），<code>sips</code> 为 macOS 内置工具，而 <code>ffmpeg</code> 会将透明部分变为黑色。如果一个都未安装，使用下方的 @BotFather 备用方式。</p>
+</li>
+<li>
+<p>将图片上传为 Telegram 机器人的头像：</p>
+<pre><code class="language-sh">printf &#x27;url = &quot;https://api.telegram.org/bot%s/setMyProfilePhoto&quot;\n&#x27; &quot;$(cat telegram-sync/token)&quot; | curl -sS -K - --form-string &#x27;photo={&quot;type&quot;:&quot;static&quot;,&quot;photo&quot;:&quot;attach://avatar&quot;}&#x27; -F &#x27;avatar=@telegram-sync/avatar.jpg;type=image/jpeg&#x27;
+</code></pre>
+<p><code>{&quot;ok&quot;:true,&quot;result&quot;:true}</code> 表示操作成功。</p>
+</li>
+</ol>
+<h3 id="if-telegram-cannot-be-reached-or-refuses">无法连接 Telegram 或请求被拒绝时<a class="heading-anchor" href="#if-telegram-cannot-be-reached-or-refuses" aria-label="链接到无法连接 Telegram 或请求被拒绝时"><span aria-hidden="true">#</span></a></h3>
+<p>改用 @BotFather。通过 <code>present_files</code> 向用户展示图片，方便用户保存；然后请用户向 @BotFather 发送 <code>/setuserpic</code>，选择机器人，再发送图片。如果第 3 步读取 Telegram 信息失败，请用户提供 Telegram 机器人的显示名称，并用它创建 Happy 机器人；如果读取头像失败，询问 Telegram 机器人是否已有头像，如有则请用户发送给你。</p>
+<h3 id="clean-up-and-tell-the-user">清理并告知用户<a class="heading-anchor" href="#clean-up-and-tell-the-user" aria-label="链接到清理并告知用户"><span aria-hidden="true">#</span></a></h3>
+<p>删除存有令牌和图片副本的临时文件夹；Happy 机器人会保留自己的头像副本：</p>
+<pre><code class="language-sh">rm -rf telegram-sync
+</code></pre>
+<p>告诉用户统一了哪些内容：Happy 机器人的名称，以及头像是从 Telegram 复制过来、上传到了 Telegram，还是为两边新制作的。</p>
+<h2 id="6-export-the-bot">6. 接入机器人<a class="heading-anchor" href="#6-export-the-bot" aria-label="链接到 6. 接入机器人"><span aria-hidden="true">#</span></a></h2>
+<p>调用 <code>set_telegram_exported_bot</code>，传入机器人的 <code>botId</code> 和 <code>token</code>。只有用户已提供要允许的 Telegram 数字用户 ID 时，才添加 <code>allowedUsers</code>；省略 <code>unknownSenders</code>，使其保持 <code>&quot;ask&quot;</code>。Telegram 会先检查令牌；如果拒绝，向用户转述错误，并请用户提供当前令牌（在 @BotFather 中发送 <code>/token</code>）。结果会给出 Telegram 机器人的名称，例如 <code>@scout_happy_bot</code>，以及对应的 <code>t.me</code> 链接。</p>
+<h2 id="7-let-the-user-in">7. 允许用户访问<a class="heading-anchor" href="#7-let-the-user-in" aria-label="链接到 7. 允许用户访问"><span aria-hidden="true">#</span></a></h2>
+<p>允许名单存储数字用户 ID，因为 Telegram 用户名可以更改。获取用户 ID 最简单的方法，是让用户提出申请：</p>
+<ol>
+<li>
+<p>请用户通过链接打开 Telegram 机器人，发送第一条想让它执行的请求。它会回复一次以下固定提示，此时消息尚不会到达机器人：</p>
+<blockquote>
+<p>感谢你的消息。此机器人只与主人已批准的人交谈，因此你的访问申请已发送给主人。如果申请获批，机器人就会回复你刚才发送的消息。</p>
+</blockquote>
+</li>
+<li>
+<p>访问申请会到达你的对话。其中包含机器人名称，以及发送者的 Telegram 用户 ID、用户名和显示名称，绝不会包含其消息内容。请用户确认该用户名属于自己。</p>
+</li>
+<li>
+<p>调用 <code>approve_exported_bot_user</code>，传入 <code>kind: &quot;telegram&quot;</code>、机器人的 <code>botId</code>，以及申请中的 <code>userId</code>。对方会成为访客，暂存的消息会发送到其新子任务，机器人随后作答。</p>
+</li>
+</ol>
+<p>也可以跳过申请：调用 <code>set_telegram_exported_bot</code>，将 <code>allowedUsers</code> 设为用户提供的 ID。每个人都可以通过给 <strong>@userinfobot</strong> 发消息查到自己的 ID。该名单会替换现有名单，因此需包含所有应继续获准访问的人。只允许用户明确指定的人，并按“用户应了解的事项”中的说明，提醒用户获准访问的人能做什么。</p>
+<h2 id="8-verify">8. 验证<a class="heading-anchor" href="#8-verify" aria-label="链接到 8. 验证"><span aria-hidden="true">#</span></a></h2>
+<p>检查以下事项：</p>
+<ol>
+<li><code>get_exported_bot_status</code> 显示接入<strong>已连接</strong>，并列出用户的对话。</li>
+<li>机器人下出现名为“&lt;对方姓名&gt; on Telegram”的子任务，而不是出现在你下面。</li>
+<li>用户在 Telegram 中收到回复。</li>
+<li><code>list_bots</code> 显示 Happy 机器人使用 Telegram 机器人的名称，且用户在 Happy 和 Telegram 中看到相同头像。</li>
+</ol>
+<div class="document-table-wrap"><table><thead><tr><th><code>get_exported_bot_status</code> 显示的状态</th><th>处理方式</th></tr></thead><tbody><tr><td>正在等待其机器人</td><td>机器人已归档。恢复机器人后，接入会恢复。</td></tr><tr><td>Telegram 拒绝了机器人令牌</td><td>令牌已被撤销。请用户提供当前令牌，并通过 <code>set_telegram_exported_bot</code> 设置。</td></tr><tr><td>另一个程序正在读取此机器人的消息</td><td>停止使用此令牌的其他程序，或移除其 webhook，然后等待一分钟。</td></tr><tr><td>无法连接 Telegram，或 Telegram 未响应</td><td>检查本机是否能联网访问 <code>api.telegram.org</code>；接入服务会持续重试。</td></tr><tr><td>已关闭</td><td>调用 <code>set_telegram_exported_bot</code>，传入 <code>enabled: true</code>。</td></tr><tr><td>正在等待批准，但你没有收到申请</td><td>申请到达时你处于归档状态。先询问用户，再批准或拒绝。</td></tr><tr><td>已忽略来自……的消息</td><td>当前设置为忽略陌生人。设置 <code>unknownSenders: &quot;ask&quot;</code>，或直接允许其 ID。</td></tr></tbody></table></div>
+<h2 id="access-requests-from-other-people">其他人的访问申请<a class="heading-anchor" href="#access-requests-from-other-people" aria-label="链接到其他人的访问申请"><span aria-hidden="true">#</span></a></h2>
+<p>其他找到 Telegram 机器人的人，也会按第 7 步中对用户的方式处理。每人只会发起一次询问：他们收到固定提示，首条消息被暂存，你收到一条注明申请人和机器人的申请。然后：</p>
+<ul>
+<li>告诉用户是谁在申请访问哪个机器人，并询问是否允许。如果用户已经说明如何处理这个人，就直接照做，无须再次询问。</li>
+<li>绝不能根据你对申请人的个人判断，或其名字中的任何内容，自行批准。</li>
+<li>用 <code>approve_exported_bot_user</code> 批准，或用 <code>deny_exported_bot_user</code> 拒绝。被拒绝的人不会收到通知；其暂存消息会被丢弃，以后发送的任何消息也不会得到回复。</li>
+<li>批准一个曾被拒绝的人，会重新允许其访问。把某人从允许名单中移除并不等于永久拒绝：他们下次发消息时会再次申请。</li>
+</ul>
+<p><code>get_exported_bot_status</code> 会列出所有等待批准的人，以及最近被拒绝的人。每项接入最多保留 20 条申请；满额时，后来的陌生人会被忽略，也不会产生申请。若要完全停止申请，设置 <code>unknownSenders: &quot;ignore&quot;</code>：陌生人的消息会被静默丢弃，状态中只会显示最近几位陌生人及其 ID。</p>
+<h2 id="later-changes">后续更改<a class="heading-anchor" href="#later-changes" aria-label="链接到后续更改"><span aria-hidden="true">#</span></a></h2>
+<p>每项更改都需指定已接入机器人的 <code>botId</code>。<code>get_exported_bot_status</code> 也接受该参数，用于仅显示一个机器人。</p>
+<div class="document-table-wrap"><table><thead><tr><th>更改</th><th>方法</th></tr></thead><tbody><tr><td>允许某人访问</td><td>使用 <code>approve_exported_bot_user</code>，或调用 <code>set_telegram_exported_bot</code> 并传入完整的新 <code>allowedUsers</code>。</td></tr><tr><td>将某人移出名单</td><td>调用 <code>set_telegram_exported_bot</code> 并传入完整的新 <code>allowedUsers</code>。其子任务和访客身份会保留。</td></tr><tr><td>永久拒绝某人</td><td>使用 <code>deny_exported_bot_user</code>。该人也会被移出名单。</td></tr><tr><td>停止或恢复访问申请</td><td>调用 <code>set_telegram_exported_bot</code>，传入 <code>unknownSenders: &quot;ignore&quot;</code> 或 <code>&quot;ask&quot;</code>。</td></tr><tr><td>让某人的聊天重新开始</td><td>归档其子任务。对方下次发消息时会创建新子任务。</td></tr><tr><td>暂停接入</td><td>调用 <code>set_telegram_exported_bot</code>，传入 <code>enabled: false</code>；Telegram 最多保留新消息一天。</td></tr><tr><td>替换泄露的令牌</td><td>用户向 @BotFather 发送 <code>/revoke</code>；再用 <code>set_telegram_exported_bot</code> 设置新令牌。</td></tr><tr><td>停止接入</td><td>调用 <code>remove_exported_bot</code>，传入 <code>kind: &quot;telegram&quot;</code>。令牌会被删除，对话保留。</td></tr></tbody></table></div>
+<h3 id="matching-the-name-and-picture-again">再次统一名称和头像<a class="heading-anchor" href="#matching-the-name-and-picture-again" aria-label="链接到再次统一名称和头像"><span aria-hidden="true">#</span></a></h3>
+<p>这些操作按第 3 步的方式使用令牌：使用本次对话中先前提供的令牌，或请用户重新发送（在 @BotFather 中发送 <code>/token</code>）。完成后删除 <code>telegram-sync</code>。</p>
+<ul>
+<li>
+<p><strong>用户在 @BotFather 中更换了头像。</strong>重复第 5 步：以 Telegram 的头像为准，将它复制到 Happy 机器人。</p>
+</li>
+<li>
+<p><strong>用户想换新头像。</strong>通过 <code>set_bot_avatar</code> 为 Happy 机器人设置头像，再按第 5 步上传，使两边同步更换。</p>
+</li>
+<li>
+<p><strong>用户在 @BotFather 中重命名了 Telegram 机器人。</strong>按第 3 步使用 getMe 读取新名称，然后调用 <code>set_bot_name</code>，传入其 <code>first_name</code> 和 Happy 机器人的 <code>botId</code>。用户名和文件夹保持不变。</p>
+</li>
+<li>
+<p><strong>用户重命名的是 Happy 机器人。</strong>为 Telegram 机器人设置相同名称，将 <code>Scout</code> 替换为 Happy 机器人的名称；也可以请用户向 @BotFather 发送 <code>/setname</code>：</p>
+<pre><code class="language-sh">printf &#x27;url = &quot;https://api.telegram.org/bot%s/setMyName&quot;\n&#x27; &quot;$(cat telegram-sync/token)&quot; | curl -sS -K - --data-urlencode &#x27;name=Scout&#x27;
+</code></pre>
+</li>
+</ul>
+<h2 id="what-the-user-should-know">用户应了解的事项<a class="heading-anchor" href="#what-the-user-should-know" aria-label="链接到用户应了解的事项"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Happy 机器人使用 Telegram 机器人的名称，并共用同一头像。之后在 @BotFather 中进行的更改不会自动同步；需要请参谋长再次统一。</li>
+<li>每位获准访问的人都是访客：Happy 知道他们的名字，但他们永远无法登录 Happy 或打开应用。访客消息只是其本人的请求，绝不会被视为用户指令，包括 Auto 权限判断某项操作是否被允许时；访客始终在 Auto 模式下运行。不过，机器人仍可利用其能访问的一切为访客工作，因此，只应允许用户信任其使用机器人文件夹和工具的人。</li>
+<li>同一个人在所有接入 Telegram 的机器人之间共用一个访客身份，因此其消息在各处都使用同一名称。将其移出名单或拒绝访问，都会保留访客身份。</li>
+<li>每个人只能看到自己的对话。其子任务在机器人的文件夹内工作，这也是接入时需要独立机器人的原因。</li>
+<li>陌生人在获批前写下的任何内容都不会到达任何机器人；你只能看到对方的身份信息。</li>
+<li>回复采用纯文本。机器人写下的一切都会发送，包括工作过程中的简短进度说明；长回复会拆成多条消息。机器人工作期间会一直显示“正在输入”。机器人生成的图片或通过 <code>present_files</code> 展示的图片会以照片形式送达，展示的其他文件则以文档形式送达，受 Telegram 的 50 MB 上限限制。</li>
+<li>用户发送的照片会展示给机器人。目前尚不会读取语音消息、视频和文件；只会告知机器人收到了这些内容。等待批准期间发送的照片不会保留。</li>
+<li>不支持群聊；机器人只回复私聊。</li>
+</ul></div>
+</div>
+<nav class="document-pagination" aria-label="文档上一页与下一页"><a class="document-pagination-prev" href="../wsl/index.html"><span>上一页</span>在 Windows 中设置 WSL 项目</a><a class="document-pagination-next" href="../chat-bridge/index.html"><span>下一页</span>将机器人接入任意聊天服务</a></nav>
+<footer class="site-footer"><div class="page-width footer-inner"><p class="footer-statement">我们围绕智能体构建交互界面：让你掌控它们的方式、它们运行的方式，以及团队与它们共享上下文的方式。<span class="footer-people"><a href="https://x.com/Ex3NDR" target="_blank" rel="noopener noreferrer">@Ex3NDR</a> 与 <a href="https://x.com/bra1n_dump" target="_blank" rel="noopener noreferrer">@bra1n_dump</a></span></p><div class="footer-meta"><div class="footer-links" aria-label="页脚导航"><a href="../../index.html">文档</a><a href="../../desktop-app/index.html">桌面应用</a><a href="../../mobile-app/index.html">手机应用</a><a href="../../privacy/index.html">隐私政策</a><a href="../../terms/index.html">服务条款</a><a class="footer-link-quiet" href="https://happy.engineering/docs/">原版 Happy CLI</a></div><a class="wordmark" href="https://happy.engineering/" aria-label="Happy Engineering 官方首页">Happy<span>Engineering</span></a><p class="footer-descriptor">在同一款应用中编排 Claude、Codex、Grok、Gemini 等智能体</p><p>© 2026 Happy Engineering</p><p>非官方中文翻译 · <a href="https://happy.engineering/recepies/telegram/" data-original="true">查看本页原文</a></p></div></div></footer>
+</article></main></div></div>
+<script>
+/* 仅复现原站移动端导航，点击站内链接后收起。 */
+const trail=document.querySelector('.docs-mobile-trail');
+const menu=document.getElementById('docs-mobile-menu');
+trail.addEventListener('click',()=>{const expanded=trail.getAttribute('aria-expanded')==='true';trail.setAttribute('aria-expanded',String(!expanded));menu.hidden=expanded;});
+menu.addEventListener('click',event=>{if(event.target.closest('a')){menu.hidden=true;trail.setAttribute('aria-expanded','false');}});
+</script>
+</body></html>

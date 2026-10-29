@@ -1,0 +1,30 @@
+<div class="document-content"><h1 id="claude-code-and-codex-on-your-phone">在手机上使用 Claude Code 和 Codex<a class="heading-anchor" href="#claude-code-and-codex-on-your-phone" aria-label="链接到在手机上使用 Claude Code 和 Codex"><span aria-hidden="true">#</span></a></h1>
+<p>Happy 手机应用是 Happy 的移动端。Happy 是一个开源智能体运行框架，可在你的电脑上编排 Claude、Codex、Grok、Gemini 等智能体。iPhone 和 Android 版本均可免费使用。用二维码配对手机一次，之后就能随时随地发送消息、回应权限请求、切换模型以及查看改动。智能体会继续在你的机器上运行，同步过程采用端到端加密。</p>
+<h2 id="can-i-control-claude-code-from-my-phone">我可以通过手机控制 Claude Code 吗？<a class="heading-anchor" href="#can-i-control-claude-code-from-my-phone" aria-label="链接到我可以通过手机控制 Claude Code 吗？"><span aria-hidden="true">#</span></a></h2>
+<p>可以。扫描二维码，将 Happy 应用与 Happy Desktop 配对一次。此后，你就能通过手机启动会话、发送消息、回应权限请求、切换模型和查看改动，而智能体会继续在你的电脑上运行。</p>
+<h2 id="does-it-work-with-codex-grok-and-gemini-too">也支持 Codex、Grok 和 Gemini 吗？<a class="heading-anchor" href="#does-it-work-with-codex-grok-and-gemini-too" aria-label="链接到也支持 Codex、Grok 和 Gemini 吗？"><span aria-hidden="true">#</span></a></h2>
+<p>支持。Happy 使用你已付费的订阅来运行 Claude、Codex 和 Grok，Gemini 及任何 ACP 智能体则使用各自的登录账号（测试版）。手机上会显示它们的全部会话。</p>
+<h2 id="do-i-need-a-terminal">我需要使用终端吗？<a class="heading-anchor" href="#do-i-need-a-terminal" aria-label="链接到我需要使用终端吗？"><span aria-hidden="true">#</span></a></h2>
+<p>不需要。Happy Desktop 会负责运行智能体。如果你已经在使用原版 Happy CLI（npm 上的 <code>happy</code>），同一个手机应用也能与它配合使用。</p>
+<h2 id="does-my-computer-have-to-stay-on">我的电脑必须一直开机吗？<a class="heading-anchor" href="#does-my-computer-have-to-stay-on" aria-label="链接到我的电脑必须一直开机吗？"><span aria-hidden="true">#</span></a></h2>
+<p>是的，因为智能体在电脑上运行。若希望笔记本休眠时它们仍继续工作，可以在<a href="https://happy.engineering/guides/remote-server/">远程服务器</a>上运行 Happy Agent，再通过同一个手机应用访问。</p>
+<h2 id="what-does-it-cost">费用是多少？<a class="heading-anchor" href="#what-does-it-cost" aria-label="链接到费用是多少？"><span aria-hidden="true">#</span></a></h2>
+<p>应用免费，并采用 MIT 许可证。语音是我们唯一收费的功能；详见<a href="https://happy.engineering/voice/">语音</a>。</p>
+<h2 id="ways-to-reach-your-agent-from-a-phone">通过手机访问智能体的方式<a class="heading-anchor" href="#ways-to-reach-your-agent-from-a-phone" aria-label="链接到通过手机访问智能体的方式"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th></th><th>Happy</th><th>Claude Code Remote Control</th><th>SSH 和终端应用</th></tr></thead><tbody><tr><td>智能体</td><td>由 Happy Desktop 运行的 Claude、Codex、Grok、Gemini 和 ACP 智能体</td><td>Claude Code</td><td>任何能在终端中运行的程序</td></tr><tr><td>手机应用</td><td>iOS 和 Android 版 Happy</td><td>iOS 和 Android 版 Claude 应用，或浏览器中的 claude.ai/code</td><td>任何 SSH 客户端</td></tr><tr><td>智能体运行位置</td><td>你的电脑</td><td>你的电脑</td><td>你的电脑</td></tr><tr><td>中间经过什么</td><td>Happy 中继，只能看到密文</td><td>Anthropic 服务器，连接期间会存储会话记录</td><td>如果手机能直接访问机器，就没有中间服务</td></tr><tr><td>是否专为小屏幕设计</td><td>是</td><td>是</td><td>否，它是终端</td></tr><tr><td>费用</td><td>免费，采用 MIT 许可证</td><td>包含在 Claude Pro、Max、Team 和 Enterprise 中</td><td>从免费到付费不等，取决于应用</td></tr></tbody></table></div>
+<p>Remote Control 的信息来自 <a href="https://code.claude.com/docs/en/remote-control" target="_blank" rel="noreferrer">Anthropic 的 Remote Control 文档</a>，核对日期为 2026 年 10 月 9 日。详细内容参见 <a href="https://happy.engineering/claude-code-remote-control/">Happy 与 Claude Code Remote Control 对比</a>。</p>
+<p>如果你只使用 Claude Code，并且已经安装 Claude 应用，Remote Control 是最直接的方式：无需再安装其他软件。如果你还想使用 Codex，或希望会话内容对所有中间方都不可读，就使用 Happy。</p>
+<h2 id="pairing">配对<a class="heading-anchor" href="#pairing" aria-label="链接到配对"><span aria-hidden="true">#</span></a></h2>
+<p>在 Happy Desktop 中打开 <strong>Settings → Mobile Access（设置 → 移动访问）</strong>。从 <a href="https://happy.engineering/#download">App Store 或 Google Play</a> 安装 Happy，扫描 Desktop 显示的设备二维码，然后在手机上批准这台电脑。只需扫描一次。</p>
+<p>已经在使用原版 Happy CLI（npm 上的 <code>happy</code>）？同一个手机应用也能与它配合使用；参见<a href="https://happy.engineering/docs/">其文档</a>。</p>
+<h2 id="what-you-can-do-from-the-phone">你能在手机上做什么<a class="heading-anchor" href="#what-you-can-do-from-the-phone" aria-label="链接到你能在手机上做什么"><span aria-hidden="true">#</span></a></h2>
+<p>离开电脑时，会话所需的一切操作：发送带图片的消息、回应权限请求、停止当前轮次、切换模型、新建会话，以及查看文件和 Git 改动。完整列表见<a href="https://happy.engineering/mobile/#what-you-can-do-from-the-phone">移动访问</a>。</p>
+<h2 id="privacy">隐私<a class="heading-anchor" href="#privacy" aria-label="链接到隐私"><span aria-hidden="true">#</span></a></h2>
+<p>会话采用端到端加密，因此 Happy 中继只能看到密文；参见<a href="https://happy.engineering/mobile/#how-the-phone-sync-is-encrypted">手机同步的加密方式</a>。</p>
+<h2 id="more">更多内容<a class="heading-anchor" href="#more" aria-label="链接到更多内容"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li><a href="https://happy.engineering/mobile/">移动访问</a>：配对、故障排查和手机上的可用操作。</li>
+<li><a href="https://happy.engineering/desktop-app/">桌面应用</a>：在一个窗口中使用 Claude Code、Codex、Grok、Gemini 等智能体。</li>
+<li><a href="https://happy.engineering/t3-code/">Happy 与 T3 Code 对比</a>：两款面向 Claude、Codex、Grok 和 ACP 智能体的开源应用。</li>
+<li>GitHub 上的源代码：<a href="https://github.com/slopus/happy" target="_blank" rel="noreferrer">Happy</a>、<a href="https://github.com/slopus/happy-desktop" target="_blank" rel="noreferrer">Happy Desktop</a> 和 <a href="https://github.com/slopus/happy-agent" target="_blank" rel="noreferrer">Happy Agent</a>。</li>
+</ul></div>

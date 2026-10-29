@@ -1,0 +1,113 @@
+<div class="document-content"><h1 id="connect-two-happy-agents-over-one-websocket">Connect two Happy Agents over one WebSocket<a class="heading-anchor" href="#connect-two-happy-agents-over-one-websocket" aria-label="Link to Connect two Happy Agents over one WebSocket"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe when a desktop or private machine should initiate one outbound
+connection to a reachable Happy Agent, then exchange messages in both directions.
+The desktop needs no incoming port, public address, or reverse URL. The contract
+is <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/API_P2P.md" target="_blank" rel="noreferrer">API_P2P.md</a>.</p>
+<h2 id="reach-both-installations-for-administration">Reach both installations for administration<a class="heading-anchor" href="#reach-both-installations-for-administration" aria-label="Link to Reach both installations for administration"><span aria-hidden="true">#</span></a></h2>
+<p>The Chief of Staff on either installation coordinates both sides using existing
+authorized SSH/deployment access or an existing managed connection. Peer messaging
+does not expose configuration endpoints. For a managed connection, send an
+authorized setup request to the remote Chief of Staff through the ordinary API:</p>
+<pre><code class="language-text">POST /v0/connections/&lt;existing-connection&gt;/api/v0/agents/&lt;remote-chief-agent-id&gt;/send
+</code></pre>
+<p>Follow the main API&#x27;s authentication and send contract. Its <code>text</code> explains the
+authorized setup, and <code>content</code> may carry a <code>tool_call_request</code> with the exact
+tool and arguments below. Observe the remote run through that same administration
+path. When deploying through SSH, write the equivalent machine <code>happy.toml</code>
+settings and use the normal configuration reload. Preserve unrelated settings
+and check existing runtime overrides first; never hand-edit generated
+<code>runtime.toml</code>.</p>
+<p>Choose stable node IDs: this example uses <code>desktop</code> and <code>server</code>. The server is
+reachable at <code>100.80.0.20:24780</code>, through system Tailscale or another private
+network. Only the desktop-to-server network direction must be reachable. Use
+<code>wss://</code> behind a TLS terminator when that is the chosen carrier. This feature
+does not provision Tailscale or an embedded Tailcat service.</p>
+<p>Generate one private pair token with <code>randomBytes(32).toString(&quot;base64url&quot;)</code> using
+Node&#x27;s crypto module. Hold it in memory or a private file, use the same value on
+both installations, and keep it out of reports and command output. Different
+peers require different tokens. <code>&lt;PAIR_TOKEN&gt;</code> below denotes that value.</p>
+<h2 id="configure-the-server-then-the-outbound-only-desktop">Configure the server, then the outbound-only desktop<a class="heading-anchor" href="#configure-the-server-then-the-outbound-only-desktop" aria-label="Link to Configure the server, then the outbound-only desktop"><span aria-hidden="true">#</span></a></h2>
+<p>Have the server&#x27;s active admin Chief of Staff invoke <code>configure_peer_messaging</code>:</p>
+<pre><code class="language-json">{ &quot;enabled&quot;: true, &quot;node_id&quot;: &quot;server&quot;, &quot;listen&quot;: true, &quot;host&quot;: &quot;100.80.0.20&quot;, &quot;port&quot;: 24780 }
+</code></pre>
+<p>Then invoke <code>set_peer_connection</code>:</p>
+<pre><code class="language-json">{ &quot;node_id&quot;: &quot;desktop&quot;, &quot;connection&quot;: { &quot;role&quot;: &quot;accept&quot;, &quot;token&quot;: &quot;&lt;PAIR_TOKEN&gt;&quot; } }
+</code></pre>
+<p>No desktop URL belongs in that accept record. Poll <code>debug_peer_connections</code> until
+the server is listening with no error and the accept peer is configured.</p>
+<p>On the desktop, invoke <code>configure_peer_messaging</code>:</p>
+<pre><code class="language-json">{ &quot;enabled&quot;: true, &quot;node_id&quot;: &quot;desktop&quot;, &quot;listen&quot;: false }
+</code></pre>
+<p>Then invoke <code>set_peer_connection</code>:</p>
+<pre><code class="language-json">{
+    &quot;node_id&quot;: &quot;server&quot;,
+    &quot;connection&quot;: { &quot;role&quot;: &quot;connect&quot;, &quot;url&quot;: &quot;ws://100.80.0.20:24780&quot;, &quot;token&quot;: &quot;&lt;PAIR_TOKEN&gt;&quot; }
+}
+</code></pre>
+<p>Configuration tools acknowledge durable intent admission. Poll debug with a
+bounded deadline until both peers report <code>connected: true</code> and the <strong>same
+session ID</strong>. Desktop must report <code>listenEnabled: false</code> and <code>listening: false</code>.
+The server must have <code>role: &quot;accept&quot;</code> and no reverse URL. A connect/authentication
+failure appears only as a safe diagnostic.</p>
+<p>Equivalent machine settings on the server are:</p>
+<pre><code class="language-toml">[peer_messaging]
+enabled = true
+node_id = &quot;server&quot;
+listen = true
+host = &quot;100.80.0.20&quot;
+port = 24780
+
+[peer_messaging.peers.desktop]
+role = &quot;accept&quot;
+token = &quot;&lt;PAIR_TOKEN&gt;&quot;
+</code></pre>
+<p>And on the desktop:</p>
+<pre><code class="language-toml">[peer_messaging]
+enabled = true
+node_id = &quot;desktop&quot;
+listen = false
+
+[peer_messaging.peers.server]
+role = &quot;connect&quot;
+url = &quot;ws://100.80.0.20:24780&quot;
+token = &quot;&lt;PAIR_TOKEN&gt;&quot;
+</code></pre>
+<p>Tools persist private generated runtime overrides without restarting the daemon.
+Project settings cannot configure peer connectivity.</p>
+<h2 id="verify-live-health-and-both-message-directions">Verify live health and both message directions<a class="heading-anchor" href="#verify-live-health-and-both-message-directions" aria-label="Link to Verify live health and both message directions"><span aria-hidden="true">#</span></a></h2>
+<p>Call <code>check_peer_connection</code> on the desktop with <code>{&quot;node_id&quot;:&quot;server&quot;}</code> and on
+the server with <code>{&quot;node_id&quot;:&quot;desktop&quot;}</code>. Both must report reachable,
+authenticated, and ready. These checks use ping/pong over the existing session;
+the server does not dial the desktop.</p>
+<p>Follow the deployed-node verification rules: create a fresh disposable project
+and agent on each installation through its independently authenticated main API,
+record the returned Agent IDs and share them with both agents. Check the projects
+remain active before each message. The peer API performs no discovery.</p>
+<p>From the desktop verification agent call <code>send_peer_agent_message</code>:</p>
+<pre><code class="language-json">{
+    &quot;node_id&quot;: &quot;server&quot;,
+    &quot;to_agent_id&quot;: &quot;&lt;SERVER_TEST_AGENT_ID&gt;&quot;,
+    &quot;text&quot;: &quot;Peer setup probe. Reply through send_peer_agent_message to node desktop, Agent ID &lt;DESKTOP_TEST_AGENT_ID&gt;, saying: Peer round trip complete.&quot;
+}
+</code></pre>
+<p>Observe the source-node/source-agent provenance in the server agent&#x27;s transcript,
+the server agent&#x27;s reply tool call, and the reply in the desktop transcript.
+Verify debug still shows the same session ID on both sides. The successful send
+acknowledges durable inbox admission; the observed reply proves both directions
+work without another connection.</p>
+<p>Reconnect restores the session, never replays messages. A lost acknowledgment
+may mean delivery occurred; inspect the recipient and reuse the reported message
+ID for a deliberate retry. Archive both temporary projects if still active and
+confirm cleanup through the main API. Report live health, round-trip evidence,
+outbound-only desktop state, and cleanup without credentials.</p>
+<h2 id="diagnose-rotate-or-disconnect">Diagnose, rotate, or disconnect<a class="heading-anchor" href="#diagnose-rotate-or-disconnect" aria-label="Link to Diagnose, rotate, or disconnect"><span aria-hidden="true">#</span></a></h2>
+<p>A bind error concerns only the listening server. A disconnected connector may
+have the wrong node ID, token, endpoint, TLS/private-network reachability, or
+roles. The two roles must be complementary. A duplicate session is refused until
+the old one closes; heartbeat detects half-open sockets.</p>
+<p>Rotate the pair token on both nodes with <code>set_peer_connection</code>. Old sessions
+close and the connector reconnects with the new token. Poll debug and ping again.
+<code>remove_peer_connection</code> revokes that local peer; configure both sides when
+disconnecting a pair. <code>configure_peer_messaging</code> with <code>{&quot;enabled&quot;:false}</code> closes
+local sessions and cancels reconnect work after application. Local agents keep
+working while the link is unavailable.</p></div>

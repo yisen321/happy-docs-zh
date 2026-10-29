@@ -1,0 +1,80 @@
+<div class="document-content"><h1 id="set-up-or-repair-mobile-access">Set up or repair Mobile Access<a class="heading-anchor" href="#set-up-or-repair-mobile-access" aria-label="Link to Set up or repair Mobile Access"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe when someone wants to control Happy Desktop from Happy Coder on their phone,
+or control terminal Claude Code/Codex sessions remotely. Mobile access is optional and the phone
+holds the account&#x27;s primary key. Messages and session content are end-to-end encrypted between
+the computer and phone. This is not a migration to direct phone-to-Agent transport.</p>
+<h2 id="one-guided-setup">One guided setup<a class="heading-anchor" href="#one-guided-setup" aria-label="Link to One guided setup"><span aria-hidden="true">#</span></a></h2>
+<p>Use the Mobile Access flow in Desktop onboarding or <strong>Settings → Mobile Access</strong>. Both local
+entry points use the same guided setup: opt in; get Happy Coder from the App Store or Google
+Play while Desktop prepares the legacy Happy CLI; confirm the app is open; scan the device QR
+inside Happy Coder and approve; wait for terminal setup to finish. The store QR downloads the
+app; the device QR authorizes the computer. There is only one device-authorization scan.</p>
+<p>If the computer is already linked, reuse that link and finish terminal setup without asking for
+another scan or forced login. A saved link can be offline; do not call it connected until live
+status confirms it. The CLI and native Agent still have distinct machine registrations.</p>
+<p>To control a terminal session remotely, start it with <code>happy claude</code> or <code>happy codex</code>. Merely
+running vanilla <code>claude</code> or <code>codex</code> does not put that session under Happy&#x27;s remote control. The
+phone can also start sessions when the corresponding computer and daemon are online.</p>
+<h2 id="diagnose-without-destroying-the-existing-setup">Diagnose without destroying the existing setup<a class="heading-anchor" href="#diagnose-without-destroying-the-existing-setup" aria-label="Link to Diagnose without destroying the existing setup"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Never delete, reset, or recursively repair <code>~/.happy</code> or <code>HAPPY_HOME_DIR</code>. Happy Agent shares
+that directory; existing history, configuration, and account state must remain intact.</li>
+<li>Never prescribe <code>happy auth login --force</code> as routine onboarding. An account/server mismatch
+requires the user&#x27;s intended account/server choice, not silently replacing either login.</li>
+<li>Desktop currently requires an available Node.js/npm installation to prepare the terminal CLI.
+Inspect the reported prerequisite/PATH/permissions error. Do not run a global install with
+sudo or change ownership recursively as a generic fix.</li>
+<li>The CLI must support <code>happy auth desktop --check</code>, whose exact marker is
+<code>happy-desktop-link-v1</code>. The marker names the local command capability, not V1 account auth;
+this handoff supports V2 credentials. If the published CLI lacks it, stop and explain that
+compatible builds are required. Do not fall back to interactive or forced authentication.</li>
+<li>If phone approval succeeds but terminal setup fails, retain the native pairing and retry the
+shared flow. <code>happy auth desktop</code> performs credential handoff and starts the daemon; it is a
+mutation, not a read-only diagnostic. Run it only within the user&#x27;s authorized repair task.
+Its direct error can distinguish account/server refusal from daemon startup/readiness failure.</li>
+<li>Do not print or ask the user to paste credential files, tokens, QR payloads, or private keys.
+CLI credentials are at the shared home root; native credentials are beneath <code>agent/happy/</code>.
+Validate status through product tools; do not reconstruct authentication by copying secrets.</li>
+<li>Readiness is checked during setup, not continuously. In the current implementation a CLI
+daemon stopped by reboot or a crash is not automatically restarted by ordinary Desktop
+startup. Explain this limitation; use the authorized setup action to start it again. Do not
+confuse native Desktop connectivity with terminal spawn/resume readiness.</li>
+</ul>
+<p>Remote Agents keep their existing Agent-only Mobile Access path. Connect them through that
+Agent&#x27;s Settings; local Desktop&#x27;s automatic terminal linking does not install a CLI on a remote
+machine or transfer credentials there. Read the remote deployment recipe if that is the task.</p>
+<p>Lost accounts, phone reinstalls, and conflicting saved accounts require a deliberate recovery
+conversation. Preserve both sides until the user chooses the account to keep. Do not initiate
+notifications or an older-user promotion campaign as part of repair.</p>
+<h2 id="unlink-or-switch-phone-account">Unlink or switch phone account<a class="heading-anchor" href="#unlink-or-switch-phone-account" aria-label="Link to Unlink or switch phone account"><span aria-hidden="true">#</span></a></h2>
+<p>Use this when someone wants this computer off their phone, wants to start over, or wants the
+computer on a different Happy account. Adding another phone to the same account is not an
+unlink: restore the account on the new phone instead.</p>
+<ul>
+<li>Unlinking (<strong>Settings → Mobile Access → Disconnect this computer</strong>, or the Happy integration
+unlink action) removes this computer from the Happy account. The computer and the chats this
+computer published disappear from the phone. Local history stays on this computer. Happy CLI
+sessions on the same account and the terminal CLI login are not touched. Before unlinking, make
+sure the person understands their chats leave the phone; do not unlink as routine
+troubleshooting.</li>
+<li>Deleting the computer on the phone (the machine&#x27;s <strong>Delete</strong> action) does the same thing. Happy
+Agent notices, or notices when it next starts, and Mobile Access returns to <strong>Not set up</strong>. To
+use the phone again, link again from this computer.</li>
+<li>If unlinking reports that Happy Agent couldn&#x27;t remove this computer, Happy was not reachable and
+nothing was forgotten. The computer stays linked but offline. Check the connection and run the
+unlink again; it resumes where it stopped. If the person would rather keep the link, start
+Mobile Access again to reconnect. Never delete <code>access.key</code> or <code>machine.json</code> by hand to force a
+local-only unlink: that leaves the computer on their phone with nothing left that can remove it.</li>
+<li>To switch accounts, unlink, then choose <strong>Connect phone</strong> and scan the QR code with the phone
+signed in to the account they want. This computer joins that account as a new computer and
+republishes its current chats with recent history; the old account no longer lists it. Older
+Happy Agent versions only dropped the local login and left the computer on the old account.</li>
+<li>The terminal CLI keeps its own login, which may be a different account. Manage it separately
+with <strong>Remove saved terminal login</strong>; unlinking the phone does not change it.</li>
+</ul>
+<h2 id="completion-checks">Completion checks<a class="heading-anchor" href="#completion-checks" aria-label="Link to Completion checks"><span aria-hidden="true">#</span></a></h2>
+<p>Confirm the intended account remains in place, native status is truthful, and terminal daemon
+setup completed. After an unlink, Mobile Access shows <strong>Not set up</strong>; ask the person to confirm the
+computer is gone from their phone. After switching accounts, confirm the computer appears on the
+new account&#x27;s phone. Where real devices and authority are available, verify a Claude/Codex start
+and resume from the phone. Do not claim a real-device check from build or unit-test results.</p></div>

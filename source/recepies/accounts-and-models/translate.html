@@ -1,0 +1,121 @@
+<div class="document-content"><h1 id="accounts-models-effort-and-service-tier">Accounts, models, effort, and service tier<a class="heading-anchor" href="#accounts-models-effort-and-service-tier" aria-label="Link to Accounts, models, effort, and service tier"><span aria-hidden="true">#</span></a></h1>
+<p>Use this recipe when the user wants to add or pool provider accounts, limit or change models, set
+the default effort or service tier, or move existing sessions to another provider. To run Claude Code, Codex CLI, Antigravity, OpenCode, or another ACP agent itself on these
+accounts, add a <a href="https://happy.engineering/recepies/harnesses/">harness</a>. Everything here
+is machine configuration in the user <code>happy.toml</code>. <a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md" target="_blank" rel="noreferrer">Configuration</a> is the
+reference.</p>
+<h2 id="before-editing">Before editing<a class="heading-anchor" href="#before-editing" aria-label="Link to Before editing"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>
+<p>The file is <code>~/Happy/Config/happy.toml</code> (macOS) or <code>~/happy/config/happy.toml</code> (Linux). It is
+outside the workspace, so writes need reviewed full access.</p>
+</li>
+<li>
+<p>Read it with credentials redacted:</p>
+<pre><code class="language-sh">sed -E &#x27;s/^([[:space:]]*(oauth_token|api_key)[[:space:]]*=).*/\1 &quot;&lt;redacted&gt;&quot;/&#x27; ~/Happy/Config/happy.toml
+</code></pre>
+</li>
+<li>
+<p>Back it up: <code>cp -p happy.toml happy.toml.bak-&lt;timestamp&gt;</code>.</p>
+</li>
+<li>
+<p>Never print, copy, or send credentials, and never copy them between accounts or machines.</p>
+</li>
+</ol>
+<h2 id="accounts">Accounts<a class="heading-anchor" href="#accounts" aria-label="Link to Accounts"><span aria-hidden="true">#</span></a></h2>
+<p>Each extra account is a <code>[providers.&lt;id&gt;]</code> table with a <code>type</code> and optional friendly <code>name</code>.
+Built-in <code>claude</code>, <code>codex</code>, and <code>grok</code> default to <strong>Current CLI</strong>; other accounts without a name
+use a readable version of the ID. Configuration, defaults, and pools continue to use the IDs.</p>
+<p>Use the person&#x27;s explicitly requested label verbatim. When proposing a name, prefer a
+recognizable email-style label, such as <code>alex@example.com</code>, <code>alex@acme</code>, or
+<code>alex.work@example.com</code>. Keep the username and domain details that distinguish the accounts;
+avoid overly short aliases. Omit redundant vendor or plan prefixes and suffixes: provider groups
+already supply that context. This is guidance for choosing a name. The product displays explicit
+names verbatim; it never shortens emails or appends plan names automatically.</p>
+<div class="document-table-wrap"><table><thead><tr><th>Vendor</th><th>Settings</th><th>How the user gets the credential</th></tr></thead><tbody><tr><td>Claude</td><td><code>type = &quot;claude&quot;</code>, <code>oauth_token</code></td><td><code>claude setup-token</code> while signed in to that account; the user pastes it into the file.</td></tr><tr><td>Codex</td><td><code>type = &quot;codex&quot;</code>, <code>auth_file</code></td><td>Sign in with a separate home, e.g. <code>CODEX_HOME=~/.codex-work codex login</code>; point at its <code>auth.json</code>.</td></tr><tr><td>Grok</td><td><code>type = &quot;grok&quot;</code>, <code>auth_file</code></td><td>That account&#x27;s Grok auth file.</td></tr><tr><td>Bedrock</td><td><code>type = &quot;bedrock&quot;</code>, <code>profile</code>, <code>region</code></td><td>An AWS profile for that account.</td></tr><tr><td>OpenAI-compatible</td><td><code>type = &quot;openai_compatible&quot;</code>, <code>base_url</code>, <code>api_key_env</code>, <code>models</code></td><td>An API key from the vendor, exported in the daemon environment. See below.</td></tr></tbody></table></div>
+<p><strong>Add an OpenAI-compatible vendor</strong> (OpenRouter, Together, Fireworks, DeepSeek, vLLM, LM Studio)
+with one table, filling <code>models</code> with the vendor&#x27;s exact model IDs:</p>
+<pre><code class="language-toml">[providers.openrouter]
+type = &quot;openai_compatible&quot;
+name = &quot;OpenRouter&quot;
+enabled = true
+base_url = &quot;https://openrouter.ai/api/v1&quot;
+api_key_env = &quot;OPENROUTER_API_KEY&quot;
+models = [&quot;deepseek/deepseek-v4.1-flash-1017&quot;]
+reasoning_field = &quot;reasoning&quot;
+
+[providers.openrouter.request]
+reasoning = { enabled = true }
+</code></pre>
+<ul>
+<li>Keep the key out of the file: put it in the variable <code>api_key_env</code> names, and reload the daemon
+from a shell that has it. Never paste the key into <code>happy.toml</code>, a commit, or a message.</li>
+<li>Only list chat models that support tool calling. Check the vendor&#x27;s model page first. On
+OpenRouter, <code>supported_parameters</code> must include <code>tools</code>.</li>
+<li>Context window, image input, and efforts come from the vendor&#x27;s <code>/models</code> in the background.
+Override any of them under <code>[providers.&lt;id&gt;.model_overrides.&quot;&lt;model&gt;&quot;]</code>. The
+<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#openai-compatible-endpoints" target="_blank" rel="noreferrer">reference</a> lists every setting.</li>
+<li>To verify, check that <code>GET /v0/config</code> lists the models under the new provider, then run one turn
+that uses a tool.</li>
+</ul>
+<p><strong>Pool</strong> same-type accounts behind a smart provider and hide the members:</p>
+<pre><code class="language-toml">[providers.claude]
+hidden = true
+
+[providers.claude_work]
+type = &quot;claude&quot;
+enabled = true
+hidden = true
+oauth_token = &quot;&lt;from claude setup-token&gt;&quot;
+
+[providers.claude_pool]
+type = &quot;smart&quot;
+strategy = &quot;round_robin&quot;
+providers = [&quot;claude&quot;, &quot;claude_work&quot;]
+enabled = true
+</code></pre>
+<div class="document-table-wrap"><table><thead><tr><th>Round robin</th><th>Behavior</th></tr></thead><tbody><tr><td>New agent or subagent</td><td>Starts on a random member.</td></tr><tr><td>Later turns</td><td>Stay on that member.</td></tr><tr><td>Auth or quota-exhaustion error</td><td>Moves to the next member.</td></tr><tr><td>Failure after output started</td><td>Not replayed on another account.</td></tr><tr><td>Not supported</td><td>Weights, usage-aware or priority routing, time windows, UI or API for pools.</td></tr></tbody></table></div>
+<div class="document-table-wrap"><table><thead><tr><th>Setting</th><th>Effect</th></tr></thead><tbody><tr><td><code>hidden = true</code></td><td>Left out of model pickers; still routed to by a pool.</td></tr><tr><td><code>enabled = false</code></td><td>Off entirely, including routing through pools.</td></tr><tr><td>Delete the table</td><td>Removes the account.</td></tr></tbody></table></div>
+<ul>
+<li>Sessions already on a hidden provider keep working. Move them to the pool with
+<a href="#switching-existing-sessions">Switching existing sessions</a> if they should rotate, and update
+<code>defaults.provider</code> if it names a hidden account.</li>
+<li>A hidden account that no pool lists goes unused.</li>
+<li>Pools combine only same-type accounts, and Bedrock only within one region; other members are
+skipped silently.</li>
+</ul>
+<h2 id="models">Models<a class="heading-anchor" href="#models" aria-label="Link to Models"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>Setting</th><th>Where</th><th>Effect</th></tr></thead><tbody><tr><td><code>include_models</code>, <code>exclude_models</code></td><td><code>[providers.&lt;id&gt;]</code></td><td>Which models this account offers anywhere, including the picker.</td></tr><tr><td><code>include_subagent_models</code>, <code>exclude_subagent_models</code></td><td><code>[providers.&lt;id&gt;]</code></td><td>Narrows only the models offered for new subagents.</td></tr><tr><td><code>provider</code>, <code>model</code></td><td><code>[defaults]</code></td><td>Default provider ID and model ID for new sessions.</td></tr></tbody></table></div>
+<ul>
+<li>Filters take exact Happy Agent model IDs, such as <code>openai/gpt-5.6-sol</code>. Exclusion wins.</li>
+<li>Pools respect member filters: a model only some members offer routes only to those.</li>
+<li><code>defaults.provider</code> may name a pool.</li>
+</ul>
+<h2 id="effort">Effort<a class="heading-anchor" href="#effort" aria-label="Link to Effort"><span aria-hidden="true">#</span></a></h2>
+<p>Set <code>effort</code> under <code>[defaults]</code>, such as <code>effort = &quot;medium&quot;</code>. Use a level the model allows; the
+allowed levels are listed per model in <code>GET /v0/config</code>.</p>
+<h2 id="service-tier">Service tier<a class="heading-anchor" href="#service-tier" aria-label="Link to Service tier"><span aria-hidden="true">#</span></a></h2>
+<div class="document-table-wrap"><table><thead><tr><th>Where</th><th>Setting</th></tr></thead><tbody><tr><td><code>[defaults]</code></td><td><code>service_tier = &quot;default&quot;</code>, <code>&quot;fast&quot;</code>, or <code>&quot;ultrafast&quot;</code>.</td></tr><tr><td>Terminal</td><td><code>/fast</code> toggles the fast tier for the session.</td></tr><tr><td>New subagents and workspaces</td><td><code>service_tier: &quot;priority&quot;</code> on the creation tool.</td></tr></tbody></table></div>
+<ul>
+<li>A tier applies only when the selected account and model support it. <code>GET /v0/config</code> lists each
+model&#x27;s supported tiers per provider.</li>
+<li>Fast inference uses twice the plan usage.</li>
+</ul>
+<h2 id="switching-existing-sessions">Switching existing sessions<a class="heading-anchor" href="#switching-existing-sessions" aria-label="Link to Switching existing sessions"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li><code>GET /v0/agents/:agentId/mode</code> to read the last submitted mode.</li>
+<li><code>PUT /v0/agents/:agentId/draft</code> with that mode, changing only <code>providerId</code>, and keep the draft
+text the user already has.</li>
+<li>The agent&#x27;s next message runs on the new provider.</li>
+</ol>
+<p>Keeping the same model on a same-type account or pool is a compatible switch and keeps the
+conversation. An incompatible switch starts a fresh model context with a handoff note.</p>
+<h2 id="apply-and-verify">Apply and verify<a class="heading-anchor" href="#apply-and-verify" aria-label="Link to Apply and verify"><span aria-hidden="true">#</span></a></h2>
+<ol>
+<li>Parse the file with a TOML parser, such as Python 3.11&#x27;s <code>tomllib</code>, and check that every pool
+member exists. If it fails, fix the file or restore the backup.</li>
+<li>Apply the change as described in
+<a href="https://github.com/slopus/happy-agent/blob/cb93f28df979a525a59edfeff4734153313aa32b/docs/configuration.md#applying-configuration-changes" target="_blank" rel="noreferrer">Applying configuration changes</a>.</li>
+<li>Check that <code>GET /v0/config</code> or the model picker shows the pool or new account and not the hidden
+members, that defaults resolve, and that switched sessions run a turn.</li>
+</ol></div>

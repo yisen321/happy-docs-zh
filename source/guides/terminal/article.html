@@ -1,0 +1,19 @@
+<div class="document-content"><h1 id="the-original-happy-cli">The Original Happy CLI<a class="heading-anchor" href="#the-original-happy-cli" aria-label="Link to The Original Happy CLI"><span aria-hidden="true">#</span></a></h1>
+<p>The original Happy CLI (<code>happy</code> on npm, formerly <code>happy-coder</code>) still works, and the same Happy phone app reaches both it and Happy Desktop. It is in maintenance mode: it gets critical fixes, and new features ship in Happy Desktop.</p>
+<h2 id="what-the-cli-does">What the CLI does<a class="heading-anchor" href="#what-the-cli-does" aria-label="Link to What the CLI does"><span aria-hidden="true">#</span></a></h2>
+<pre><code class="language-sh">npm install -g happy
+
+happy claude
+happy codex
+</code></pre>
+<p><code>happy</code> wraps the real <code>claude</code> or <code>codex</code> with your normal sign-in and arguments, encrypts the session before it leaves the machine, and keeps a background daemon so the phone can start and resume sessions with no terminal attached. The first run pairs the machine by QR code. The full reference is in the <a href="https://happy.engineering/docs/">original Happy CLI docs</a>.</p>
+<h2 id="use-the-cli-alongside-happy-desktop">Use the CLI alongside Happy Desktop<a class="heading-anchor" href="#use-the-cli-alongside-happy-desktop" aria-label="Link to Use the CLI alongside Happy Desktop"><span aria-hidden="true">#</span></a></h2>
+<ul>
+<li>Desktop does not need the CLI and does not install it.</li>
+<li>Your account and sessions keep working. Pair Desktop from <strong>Settings → Mobile Access</strong>, and the phone shows the CLI and Desktop as two machines on the same account.</li>
+<li>Both keep their state under <code>~/.happy</code>. Never delete it to fix a problem.</li>
+</ul>
+<h2 id="move-to-happy-desktop">Move to Happy Desktop<a class="heading-anchor" href="#move-to-happy-desktop" aria-label="Link to Move to Happy Desktop"><span aria-hidden="true">#</span></a></h2>
+<p>Happy Desktop runs Claude, Codex, Grok, Gemini, and more in one app, reusing the subscriptions you already pay for. Sessions belong to a background runtime, so they survive a closed window and a restart, and every one of them reaches your phone. <a href="https://happy.engineering/#download">Download it</a>, or start at the <a href="https://happy.engineering/quick-start/">Quick Start</a>.</p>
+<h2 id="missing-something-from-the-cli">Missing something from the CLI?<a class="heading-anchor" href="#missing-something-from-the-cli" aria-label="Link to Missing something from the CLI?"><span aria-hidden="true">#</span></a></h2>
+<p>If you use the CLI today and Happy Desktop lacks something you rely on, DM Kirill on X, <a href="https://x.com/bra1n_dump" target="_blank" rel="noreferrer">@bra1n_dump</a>, and tell us what it is.</p></div>
